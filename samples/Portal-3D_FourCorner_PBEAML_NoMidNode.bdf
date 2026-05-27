@@ -1,0 +1,101 @@
+SOL 101
+CEND
+TITLE = 3D Four-Corner Portal - PBEAML No Mid Node
+SUBTITLE = Mixed top-beam loads on one-story 3D frame
+ECHO = NONE
+SUBCASE 1
+  LABEL = Combined roof beam loads
+  SPC = 1
+  LOAD = 1
+  DISPLACEMENT(SORT1,REAL) = ALL
+  FORCE(SORT1,REAL) = ALL
+  STRESS(CORNER,CENTER,PRINT,POST) = ALL
+SUBCASE 2
+  LABEL = Point load at beam midspan
+  SPC = 1
+  LOAD = 2
+  DISPLACEMENT(SORT1,REAL) = ALL
+  FORCE(SORT1,REAL) = ALL
+  STRESS(CORNER,CENTER,PRINT,POST) = ALL
+SUBCASE 3
+  LABEL = Uniform distributed Z load
+  SPC = 1
+  LOAD = 3
+  DISPLACEMENT(SORT1,REAL) = ALL
+  FORCE(SORT1,REAL) = ALL
+  STRESS(CORNER,CENTER,PRINT,POST) = ALL
+SUBCASE 4
+  LABEL = Half-span distributed Y load
+  SPC = 1
+  LOAD = 4
+  DISPLACEMENT(SORT1,REAL) = ALL
+  FORCE(SORT1,REAL) = ALL
+  STRESS(CORNER,CENTER,PRINT,POST) = ALL
+SUBCASE 5
+  LABEL = Uniform torsional load
+  SPC = 1
+  LOAD = 5
+  DISPLACEMENT(SORT1,REAL) = ALL
+  FORCE(SORT1,REAL) = ALL
+  STRESS(CORNER,CENTER,PRINT,POST) = ALL
+BEGIN BULK
+PARAM,POST,-1
+PARAM,AUTOSPC,YES
+$
+$ Units: mm, N
+$ Base corners
+GRID,1,,0.,0.,0.
+GRID,2,,8000.,0.,0.
+GRID,3,,8000.,6000.,0.
+GRID,4,,0.,6000.,0.
+$ Top corners
+GRID,11,,0.,0.,3500.
+GRID,12,,8000.,0.,3500.
+GRID,13,,8000.,6000.,3500.
+GRID,14,,0.,6000.,3500.
+$
+MAT1,1,210000.,,0.30,7.85E-9
+$
+SPC1,1,123456,1,2,3,4
+$
+$ Columns
+CBEAM,1,101,1,11,1.,0.,0.
+CBEAM,2,101,2,12,1.,0.,0.
+CBEAM,3,101,3,13,1.,0.,0.
+CBEAM,4,101,4,14,1.,0.,0.
+$ Roof beams (no mid nodes)
+CBEAM,11,102,11,12,0.,0.,1.
+CBEAM,12,102,12,13,1.,0.,0.
+CBEAM,13,102,13,14,0.,0.,1.
+CBEAM,14,102,14,11,1.,0.,0.
+$
+$ PBEAML sections
+PBEAML,101,1,,I
++,320.,180.,180.,16.,16.,10.,0.,YES
++,1.,320.,180.,180.,16.,16.,10.,0.
+PBEAML,102,1,,I
++,450.,220.,220.,20.,20.,12.,0.,YES
++,1.,450.,220.,220.,20.,20.,12.,0.
+$
+$ LOAD SET 1: combined demonstration
+$ Beam 11: concentrated downward load at midspan
+PLOAD1,1,11,FZ,FR,0.5,-80000.,0.5,-80000.
+$ Beam 12: full-span uniform downward load
+PLOAD1,1,12,FZ,FR,0.,-18.,1.,-18.
+$ Beam 13: half-span local-Y distributed load
+PLOAD1,1,13,FY,FR,0.,24.,0.5,24.
+$ Beam 14: full-span torsional load about beam axis
+PLOAD1,1,14,MX,FR,0.,12000.,1.,12000.
+$
+$ LOAD SET 2: point only
+PLOAD1,2,11,FZ,FR,0.5,-80000.,0.5,-80000.
+$
+$ LOAD SET 3: uniform distributed Z only
+PLOAD1,3,12,FZ,FR,0.,-18.,1.,-18.
+$
+$ LOAD SET 4: half-span distributed Y only
+PLOAD1,4,13,FY,FR,0.,24.,0.5,24.
+$
+$ LOAD SET 5: torsional load only
+PLOAD1,5,14,MX,FR,0.,12000.,1.,12000.
+ENDDATA

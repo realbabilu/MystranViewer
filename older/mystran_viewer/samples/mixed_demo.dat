@@ -1,0 +1,101 @@
+$ ======================================================
+$ Mixed element type demo model
+$ Tests: CBAR, CROD, CTRIA3, CQUAD4, CTETRA, CPENTA, CHEXA
+$ ======================================================
+$
+ID      MIXED_DEMO
+SOL     101
+CEND
+  TITLE = Mixed Element Demo
+  SPC = 1
+  LOAD = 2
+  DISPLACEMENT(PRINT) = ALL
+BEGIN BULK
+$
+$ Materials
+MAT1    1       200000.         0.3     7.85-9
+$
+$ Properties
+PBAR    1       1       1.0             0.0833  0.0833
+PROD    2       1       1.0
+PSHELL  3       1       5.0
+PSOLID  4       1
+$
+$  ===== NODES =====
+$  Base plate (Z=0 plane, 9 nodes)
+GRID    1       0       0.0     0.0     0.0
+GRID    2       0       50.0    0.0     0.0
+GRID    3       0       100.0   0.0     0.0
+GRID    4       0       0.0     50.0    0.0
+GRID    5       0       50.0    50.0    0.0
+GRID    6       0       100.0   50.0    0.0
+GRID    7       0       0.0     100.0   0.0
+GRID    8       0       50.0    100.0   0.0
+GRID    9       0       100.0   100.0   0.0
+$
+$  Upper plate (Z=50)
+GRID    10      0       0.0     0.0     50.0
+GRID    11      0       50.0    0.0     50.0
+GRID    12      0       100.0   0.0     50.0
+GRID    13      0       0.0     50.0    50.0
+GRID    14      0       50.0    50.0    50.0
+GRID    15      0       100.0   50.0    50.0
+GRID    16      0       0.0     100.0   50.0
+GRID    17      0       50.0    100.0   50.0
+GRID    18      0       100.0   100.0   50.0
+$
+$  Bar tips (Z=100)
+GRID    19      0       25.0    25.0    100.0
+GRID    20      0       75.0    25.0    100.0
+GRID    21      0       25.0    75.0    100.0
+GRID    22      0       75.0    75.0    100.0
+$
+$  ===== ELEMENTS =====
+$
+$  CHEXA (brick) - lower half
+CHEXA   1       4       1       2       5       4       10      11      14      13
+CHEXA   2       4       2       3       6       5       11      12      15      14
+CHEXA   3       4       4       5       8       7       13      14      17      16
+CHEXA   4       4       5       6       9       8       14      15      18      17
+$
+$  CQUAD4 - top face of solids (Z=50)
+CQUAD4  101     3       10      11      14      13
+CQUAD4  102     3       11      12      15      14
+CQUAD4  103     3       13      14      17      16
+CQUAD4  104     3       14      15      18      17
+$
+$  CBAR - columns rising from upper plate
+CBAR    201     1       11      19      0.0     0.0     1.0
+CBAR    202     1       12      20      0.0     0.0     1.0
+CBAR    203     1       17      21      0.0     0.0     1.0
+CBAR    204     1       18      22      0.0     0.0     1.0
+$
+$  CROD - bracing
+CROD    301     2       19      20
+CROD    302     2       20      22
+CROD    303     2       22      21
+CROD    304     2       21      19
+$
+$  CTRIA3 - triangular roof panels
+CTRIA3  401     3       19      20      21
+CTRIA3  402     3       20      22      21
+$
+$  ===== BOUNDARY CONDITIONS =====
+$  Fix base (Z=0 nodes), all 6 DOF
+SPC1    1       123456  1
+SPC1    1       123456  2
+SPC1    1       123456  3
+SPC1    1       123456  4
+SPC1    1       123456  6
+SPC1    1       123456  7
+SPC1    1       123456  8
+SPC1    1       123456  9
+$
+$  ===== LOADS =====
+$  Point loads at bar tips - lateral
+FORCE   2       19      0       500.    1.0     0.0     0.0
+FORCE   2       20      0       500.    1.0     0.0     0.0
+FORCE   2       21      0       500.    1.0     0.0     0.0
+FORCE   2       22      0       500.    1.0     0.0     0.0
+$
+ENDDATA

@@ -1,0 +1,53 @@
+$ ======================================================
+$ Cook's Membrane - Classic FEM benchmark
+$ Trapezoidal membrane, in-plane shear loading
+$ ======================================================
+$
+ID      MYSTRAN_VIEWER SAMPLE
+SOL     101
+CEND
+  TITLE = Cook Membrane Benchmark
+  SUBTITLE = Plane Stress
+  ECHO = NONE
+  SPC = 1
+  LOAD = 2
+  DISPLACEMENT(PRINT,PUNCH) = ALL
+  STRESS(PRINT,PUNCH) = ALL
+BEGIN BULK
+$
+$ Material
+MAT1    1       210.0           0.333
+$
+$ Property - thin shell/plane stress t=1
+PSHELL  1       1       1.0
+$
+$ Nodes (Cook's membrane geometry)
+GRID    1       0       0.0     0.0     0.0
+GRID    2       0       48.0    44.0    0.0
+GRID    3       0       48.0    60.0    0.0
+GRID    4       0       0.0     44.0    0.0
+GRID    5       0       24.0    22.0    0.0
+GRID    6       0       24.0    52.0    0.0
+GRID    7       0       0.0     22.0    0.0
+GRID    8       0       48.0    52.0    0.0
+GRID    9       0       24.0    44.0    0.0
+GRID    10      0       0.0     44.0    0.0
+$
+$ Elements (CQUAD4 mesh)
+CQUAD4  1       1       1       5       9       7
+CQUAD4  2       1       5       2       8       9
+CQUAD4  3       1       7       9       6       4
+CQUAD4  4       1       9       8       3       6
+$
+$ Boundary conditions - fix left edge (nodes 1, 4, 7, 10)
+SPC1    1       12      1
+SPC1    1       12      4
+SPC1    1       12      7
+SPC1    1       12      10
+$
+$ Loading - distributed shear on right edge
+FORCE   2       2       0       6.25    0.0     1.0     0.0
+FORCE   2       3       0       6.25    0.0     1.0     0.0
+FORCE   2       8       0       12.5    0.0     1.0     0.0
+$
+ENDDATA

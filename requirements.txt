@@ -1,0 +1,5 @@
+moderngl>=5.10.0
+imgui-bundle>=1.5.0
+glfw>=2.6.0
+pyrr>=0.10.3
+numpy>=1.24.0
