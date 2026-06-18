@@ -1,4 +1,4 @@
-"""ImGui panels for MYSTRAN Viewer."""
+﻿"""ImGui panels for MYSTRAN Viewer."""
 
 import os
 from typing import Optional
@@ -234,6 +234,8 @@ def _current_result_label(state: ViewerState):
             'smax': 'Beam Stress Smax [Solver]',
             'smin': 'Beam Stress Smin [Solver]',
         }[rt]
+    if rt == 'stress3d':
+        return 'Beam Stress 3D [CDEF interp]'
     if rt in ('nodal_vm','noxx','noyy','ntxy','nomax','nomin') and sc in r.stresses:
         base = {
             'nodal_vm':'Von Mises',
@@ -755,7 +757,7 @@ def draw_right_panel(state: ViewerState, camera, width: int, height: int):
         imgui.spacing()
         imgui.push_style_color(imgui.Col_.text,imgui.ImVec4(0.7,1.0,0.7,1.0))
         imgui.text("Result"); imgui.pop_style_color()
-        stress_types = ['von_mises','oxx','oyy','txy','omax','omin']
+        stress_types = ['von_mises','oxx','oyy','txy','omax','omin','sxc','sxd','sxe','sxf','smax','smin','stress3d']
         disp_types   = ['displacement','t1','t2','t3']
         cur_is_stress = state.result_type in stress_types
         cur_is_disp   = state.result_type in disp_types or not cur_is_stress
@@ -1085,12 +1087,86 @@ def draw_legend(state: ViewerState, width: int, height: int):
         dl.add_text((bar_x, bar_y + 44), 0xFFAABBFF, f"  Beam {min_info[0]}  s={min_info[1]:.3f}")
         return
 
+    if state.display_mode == "contour" and rt == 'stress3d':
+        diag = getattr(state, 'beam_diagram', None)
+        beam_data = getattr(diag, 'beam_data', {}) if diag is not None else {}
+        vals = []
+        max_info = None
+        min_info = None
+        max_corner = None
+        min_corner = None
+        for eid, bd in beam_data.items():
+            if not getattr(bd, 'stations', None):
+                continue
+            for st in bd.stations:
+                cdef_vals = {
+                    'C': float(getattr(st, 'sxc', 0.0)),
+                    'D': float(getattr(st, 'sxd', 0.0)),
+                    'E': float(getattr(st, 'sxe', 0.0)),
+                    'F': float(getattr(st, 'sxf', 0.0)),
+                }
+                vals.extend(cdef_vals.values())
+                cmax = max(cdef_vals, key=cdef_vals.get)
+                cmin = min(cdef_vals, key=cdef_vals.get)
+                if max_info is None or cdef_vals[cmax] > max_info[2]:
+                    max_info = (eid, st.sd, cdef_vals[cmax])
+                    max_corner = cmax
+                if min_info is None or cdef_vals[cmin] < min_info[2]:
+                    min_info = (eid, st.sd, cdef_vals[cmin])
+                    min_corner = cmin
+        if vals and max_info is not None and min_info is not None:
+            vmin = min(vals)
+            vmax = max(vals)
+            label = 'Beam Stress 3D [CDEF interp]'
+            dl = imgui.get_foreground_draw_list()
+            bar_w = 16
+            bar_h = min(360, height - 220)
+            bar_x = 276
+            bar_y = 200
+            dl.add_text((bar_x, bar_y - 28), 0xFFFFCC44, label)
+
+            def to_col(c):
+                return (0xFF000000 | (int(np.clip(c[2], 0, 1) * 255) << 16) |
+                        (int(np.clip(c[1], 0, 1) * 255) << 8) |
+                        int(np.clip(c[0], 0, 1) * 255))
+
+            n_seg = 64
+            for i in range(n_seg):
+                t0 = 1.0 - i / n_seg
+                t1 = 1.0 - (i + 1) / n_seg
+                c0 = to_col(cmap[int(np.clip(t0, 0, 1) * 255)])
+                c1 = to_col(cmap[int(np.clip(t1, 0, 1) * 255)])
+                seg_h = bar_h / n_seg
+                dl.add_rect_filled_multi_color(
+                    (bar_x, bar_y + i * seg_h), (bar_x + bar_w, bar_y + (i + 1) * seg_h),
+                    c0, c0, c1, c1)
+            dl.add_rect((bar_x, bar_y), (bar_x + bar_w, bar_y + bar_h), 0xFF444444, 0, 1.0)
+
+            lx = bar_x + bar_w + 6
+            tick_count = 20 if bar_h >= 320 else 10
+            for tick in legend_ticks(vmin, vmax, tick_count):
+                t = np.clip((tick - vmin) / (vmax - vmin + 1e-30), 0, 1)
+                ty = bar_y + (1.0 - t) * bar_h
+                dl.add_line((bar_x + bar_w, ty), (bar_x + bar_w + 4, ty), 0xFF666666, 1.0)
+                dl.add_text((lx, ty - 6), 0xFFBBBBBB, _format_legend_tick(tick))
+
+            base_y = bar_y + bar_h + 18
+            dl.add_text((bar_x, base_y + 0),  0xFF4499FF, f"MAX {_format_legend_tick(max_info[2])}")
+            dl.add_text((bar_x, base_y + 14), 0xFF88AAFF,
+                        f"  Beam {max_info[0]}  s={max_info[1]:.3f}  corner {max_corner}")
+            dl.add_text((bar_x, base_y + 30), 0xFF9944FF, f"MIN {_format_legend_tick(min_info[2])}")
+            dl.add_text((bar_x, base_y + 44), 0xFFAABBFF,
+                        f"  Beam {min_info[0]}  s={min_info[1]:.3f}  corner {min_corner}")
+            return
+
     if state.display_mode == "contour" and rt in _BEAM_STRESS_KEYS:
         diag = getattr(state, 'beam_diagram', None)
         beam_data = getattr(diag, 'beam_data', {}) if diag is not None else {}
         vals = []
         max_info = None
         min_info = None
+        max_corner = None
+        min_corner = None
         for eid, bd in beam_data.items():
             if not getattr(bd, 'stations', None):
                 continue
@@ -1293,6 +1369,7 @@ _RESULTS = [
     ('sxf',          'Beam Stress F'),
     ('smax',         'Beam Stress Smax'),
     ('smin',         'Beam Stress Smin'),
+    ('stress3d',     'Beam Stress 3D'),
     ('nodal_vm',     'Stress Nodal VM'),
     ('noxx',         'Stress Nodal Sxx'),
     ('noyy',         'Stress Nodal Syy'),
@@ -1386,6 +1463,8 @@ def draw_contour_toolbar(state: ViewerState, width: int, height: int):
                 for k in _BEAM_STRESS_KEYS:
                     if k not in avail_keys:
                         avail_keys.append(k)
+                if 'stress3d' not in avail_keys:
+                    avail_keys.append('stress3d')
         if hasattr(state.results, 'forces') and state.subcase in state.results.forces:
             fc = state.results.forces[state.subcase]
             if fc:
@@ -1526,3 +1605,5 @@ def draw_node_info(state: ViewerState, width: int, height: int):
         d=state.results.displacements[state.subcase].get(state.selected_node)
         if d: imgui.text(f"  |u|={d.magnitude:.5e}")
     imgui.end()
+
+

@@ -1,0 +1,190 @@
+$-----------------------------------------------------------------------
+$ SAP2000 Verification Example 1-001
+$ FRAME - INCLINED MEMBERS (L-shaped frame with inclined rafter)
+$ Section: Rectangular 12x12 in, bending only (AMod=1e3, A2=A3=0)
+$   A=144 in^2, I33=1728 in^4, E=3600 kip/in^2
+$ Geometry (global X-Z plane):
+$   Node 1: (0,0,0)   - fixed base
+$   Node 2: (0,0,120) - knee joint
+$   Node 3: (96,0,192)- roller at free end (UX restrained, UZ free)
+$   Node 4: (-48,0,120)- cantilever tip (no BC)
+$ Members:
+$   EID 1: 1->2 (vertical column, L=120)
+$   EID 2: 2->3 (inclined rafter, L=120)
+$   EID 3: 4->2 (horizontal cantilever arm, L=48)
+$ Load cases (multiple):
+$   LC2: 10 kip downward at node 4; 0.15 kip/in UDL on frame 3
+$   LC3: Joint moment at node 2; UDL on frame 1 (triangular 0->0.1667 kip/in)
+$   LC4: Projected UDL on rafter (frame 2) -0.1667 kip/in (Z-proj)
+$   LC5: Local UDL on column (frame 1) -0.1667 kip/in (local 2-dir)
+$   LC6: Linearly varying load on frame 2 (0.0 to -0.0312 kip/in local)
+$   LC7: Point load -15 kip at midspan of frame 2 (local-2)
+$-----------------------------------------------------------------------
+SOL 101
+CEND
+  TITLE   = SAP2000 Ex 1-001 Inclined Frame - Multiple Load Cases Kip-in
+SUBCASE 1
+  SUBTITLE = LOAD CASE 1 SELF WEIGHT
+  DISPLACEMENT(SORT1,REAL) = ALL
+  SPCFORCES(SORT1,REAL) = ALL
+  FORCE(SORT1,REAL) = ALL
+  STRESS(SORT1,REAL) = ALL
+  STRAIN(SORT1,REAL) = ALL
+  SPC = 1
+  LOAD = 101
+  GPFORCE(SORT1,REAL) = ALL
+SUBCASE 2
+  SUBTITLE = LOAD CASE 2 JOINT LOAD
+  DISPLACEMENT(SORT1,REAL) = ALL
+  SPCFORCES(SORT1,REAL) = ALL
+  FORCE(SORT1,REAL) = ALL
+  STRESS(SORT1,REAL) = ALL
+  STRAIN(SORT1,REAL) = ALL
+  SPC = 1
+  LOAD = 201
+  GPFORCE(SORT1,REAL) = ALL
+SUBCASE 3
+  SUBTITLE = LOAD CASE 3 JOINT FORCE PLUS MOMENT
+  DISPLACEMENT(SORT1,REAL) = ALL
+  SPCFORCES(SORT1,REAL) = ALL
+  FORCE(SORT1,REAL) = ALL
+  STRESS(SORT1,REAL) = ALL
+  STRAIN(SORT1,REAL) = ALL
+  SPC = 1
+  LOAD = 301
+  GPFORCE(SORT1,REAL) = ALL
+SUBCASE 4
+  SUBTITLE = LOAD CASE 4 PROJECTED UDL
+  DISPLACEMENT(SORT1,REAL) = ALL
+  SPCFORCES(SORT1,REAL) = ALL
+  FORCE(SORT1,REAL) = ALL
+  STRESS(SORT1,REAL) = ALL
+  STRAIN(SORT1,REAL) = ALL
+  SPC = 1
+  LOAD = 401
+  GPFORCE(SORT1,REAL) = ALL
+SUBCASE 5
+  SUBTITLE = LOAD CASE 5 LOCAL UDL
+  DISPLACEMENT(SORT1,REAL) = ALL
+  SPCFORCES(SORT1,REAL) = ALL
+  FORCE(SORT1,REAL) = ALL
+  STRESS(SORT1,REAL) = ALL
+  STRAIN(SORT1,REAL) = ALL
+  SPC = 1
+  LOAD = 501
+  GPFORCE(SORT1,REAL) = ALL
+SUBCASE 6
+  SUBTITLE = LOAD CASE 6 TRIANGULAR LOAD
+  DISPLACEMENT(SORT1,REAL) = ALL
+  SPCFORCES(SORT1,REAL) = ALL
+  FORCE(SORT1,REAL) = ALL
+  STRESS(SORT1,REAL) = ALL
+  STRAIN(SORT1,REAL) = ALL
+  SPC = 1
+  LOAD = 601
+  GPFORCE(SORT1,REAL) = ALL
+SUBCASE 7
+  SUBTITLE = LOAD CASE 7 MIDSPAN POINT LOAD PERPENDICULAR ELEMENT
+  DISPLACEMENT(SORT1,REAL) = ALL
+  SPCFORCES(SORT1,REAL) = ALL
+  FORCE(SORT1,REAL) = ALL
+  STRESS(SORT1,REAL) = ALL
+  STRAIN(SORT1,REAL) = ALL
+  SPC = 1
+  LOAD = 701
+  GPFORCE(SORT1,REAL) = ALL
+  
+BEGIN BULK
+PARAM,POST,-1
+PARAM,OGEOM,YES
+$ PLAN X-Z --> Z is up and GRAVITY -Z AS SAP2K wants
+GRID,1,0,0.0,0.0,0.0,0
+GRID,2,0,0.0,0.0,120.0,0
+GRID,3,0,96.0,0.0,192.0,0
+GRID,4,0,-48.0,0.0,120.0,0
+$
+$ Vertical column orient major vec Y in X
+CBEAM,1,1,1,2,1.0,0.0,0.0 
+$ Inclined rafter : orient major vec Y  in Z
+CBEAM,2,1,2,3,0.0,0.0,1.0
+$ Horizontal cantilever arm (4->2)
+CBEAM,3,1,4,2,0.0,0.0,1.0
+$
+$ Section: bending only (AMod=1000, A2=A3=0 in SAP = large A, zero shear)
+$ In NX: very large A, Av=0, k1,k2=0
+$ Rectangular 12x12: A=144, I=1728 in^4 dont use PBEAML since k1 k2 cant be 0
+PBEAM,1,1,144000.0,1728.0,1728.0,0.0,2920.32
++,6.0,6.0,6.0,-6.0,-6.0,-6.0,-6.0,6.0
+,YES,0.1,144000.0,1728.0,1728.0,0.0,2920.32
++,6.0,6.0,6.0,-6.0,-6.0,-6.0,-6.0,6.0
+,YES,0.2,144000.0,1728.0,1728.0,0.0,2920.32
++,6.0,6.0,6.0,-6.0,-6.0,-6.0,-6.0,6.0
+,YES,0.3,144000.0,1728.0,1728.0,0.0,2920.32
++,6.0,6.0,6.0,-6.0,-6.0,-6.0,-6.0,6.0
+,YES,0.4,144000.0,1728.0,1728.0,0.0,2920.32
++,6.0,6.0,6.0,-6.0,-6.0,-6.0,-6.0,6.0
+,YES,0.5,144000.0,1728.0,1728.0,0.0,2920.32
++,6.0,6.0,6.0,-6.0,-6.0,-6.0,-6.0,6.0
+,YES,0.6,144000.0,1728.0,1728.0,0.0,2920.32
++,6.0,6.0,6.0,-6.0,-6.0,-6.0,-6.0,6.0
+,YES,0.7,144000.0,1728.0,1728.0,0.0,2920.32
++,6.0,6.0,6.0,-6.0,-6.0,-6.0,-6.0,6.0
+,YES,0.8,144000.0,1728.0,1728.0,0.0,2920.32
++,6.0,6.0,6.0,-6.0,-6.0,-6.0,-6.0,6.0
+,YES,0.9,144000.0,1728.0,1728.0,0.0,2920.32
++,6.0,6.0,6.0,-6.0,-6.0,-6.0,-6.0,6.0
+,YES,1.0,144000.0,1728.0,1728.0,0.0,2920.32
++,6.0,6.0,6.0,-6.0,-6.0,-6.0,-6.0,6.0
++,0.0,0.0
+$ K1,K2 after stations
+$ E=3600, G=1500, nu=0.2 (concrete)
+MAT1,1,3600.0,1500.0,0.2
+$
+$ Supports
+$ Plane X-Z with no torsion or out of plane forces SPC 246 default on node 2,4 
+$ Z up, X right 
+SPC1,1,246,2
+SPC1,1,246,4
+$ Node 1: pinned -( open rotation y) 
+SPC1,1,12346,1
+$ Node 3: roller -(roller in Z open rotation y) 
+SPC1,1,1246,3
+
+$ --- LOAD CASE 1: SELF WEIGHT UDL 0.15 k/in gravity z on frame 3 ---
+PLOAD1,101,1,FZ,FR,0.,-.0125,1.,-.0125
+PLOAD1,101,2,FZ,FR,0.,-.0125,1.,-.0125
+PLOAD1,101,3,FZ,FR,0.,-.0125,1.,-.0125
+
+$ --- LOAD CASE 2: 10 kip down at node 4, UDL 0.15 k/in gravity z on frame 3 ---
+FORCE,201,4,0,1.,0.,0.,-10.
+PLOAD1,201,3,FZ,FR,0.,-0.15,1.,-0.15
+
+$
+$ --- LOAD CASE 3: joint forces global -z
+$     + joint moment at node 2 ---
+$ Joint moment at node 2 (M2 = -652.8 kip-in) + force -17.2k down
+FORCE,301,2,0,1.,0.,0.,-17.2
+MOMENT,301,2,0,1.,0.,-652.8,0.
+
+$
+$ --- LOAD CASE 4: projected UDL on rafter frame 2, -0.1667 kip/in global z ---
+PLOAD1,401,2,FZ,FRPR,0.,-0.16666,1.,-0.16666
+
+$
+$ --- LOAD CASE 5: local-2 UDL on frame 1 = -0.1667 k/in; also on frame 2 ---
+$ --- major axis beam 1 - y is on x global, beam 2 - y is on z global ---
+PLOAD1,501,1,FYE,FR,0.,0.16666,1.,0.16666
+PLOAD1,501,2,FYE,FR,0.,-0.16666,1.,-0.16666
+
+$
+$ --- LOAD CASE 6: linearly varying local-2 on frame 1 (0.0832->0.0312) --- 
+$ --- major axis beam 1 - y is on x global, beam 2 - y is on z global ---
+$                 and frame 2 (0->-0.0312) ---
+PLOAD1,601,1,FYE,FR,0.,0.0832,1.,0.0312
+PLOAD1,601,2,FYE,FR,0.,-0.0312,1.,0.0
+
+
+$ --- LOAD CASE 7: -15 kip at midspan of frame 2 (major direction) major ---
+PLOAD1,701,2,FYE,FR,0.5,-15.
+$
+ENDDATA

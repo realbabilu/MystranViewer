@@ -19,6 +19,7 @@ from renderer.beam_diagram import (
     _beam_end_force_components,
     _double_integrate_point_loads,
 )
+from parser.beam_stress import pbeam_cdef_points
 from renderer.contour   import COLORMAPS
 
 # ---------------------------------------------------------------------------
@@ -99,6 +100,7 @@ C_SPC     = [1.00, 0.27, 1.00]
 _DIM_FILL = {'1d': C_1D_FILL, '2d': C_2D_FILL, '3d': C_3D_FILL}
 _DIM_WIRE = {'1d': C_1D_WIRE, '2d': C_2D_WIRE, '3d': C_3D_WIRE}
 _BEAM_STRESS_KEYS = {'sxc','sxd','sxe','sxf','smax','smin'}
+_BEAM_STRESS_SURFACE_KEYS = _BEAM_STRESS_KEYS | {'stress3d'}
 
 
 def _property_wire_color(pid: int, dim: str):
@@ -407,44 +409,58 @@ def _beam_curve_profile_rings(curve_pts, profile, v_orient=None):
         rings.append(ring)
     return rings
 
+def _section_loops(profile_or_loops):
+    if not profile_or_loops:
+        return []
+    first = profile_or_loops[0]
+    if isinstance(first, (list, tuple)) and len(first) > 0 and isinstance(first[0], (list, tuple, np.ndarray)):
+        return [list(loop) for loop in profile_or_loops]
+    return [list(profile_or_loops)]
+
 
 def _beam_curve_section_tris(curve_pts, profile, v_orient=None, cap_ends=True):
-    rings = _beam_curve_profile_rings(curve_pts, profile, v_orient)
-    if len(rings) < 2:
-        return []
-    n = len(profile)
     tris = []
-    for k in range(len(rings) - 1):
-        r0 = rings[k]
-        r1 = rings[k + 1]
-        for i in range(n):
-            j = (i + 1) % n
-            tris += [(r0[i], r0[j], r1[j]), (r0[i], r1[j], r1[i])]
-    if cap_ends and len(profile) >= 3:
-        for i0, i1, i2 in _triangulate_profile(profile):
-            tris += [(rings[0][i0], rings[0][i1], rings[0][i2]),
-                     (rings[-1][i0], rings[-1][i2], rings[-1][i1])]
+    loops = _section_loops(profile)
+    for loop in loops:
+        rings = _beam_curve_profile_rings(curve_pts, loop, v_orient)
+        if len(rings) < 2:
+            continue
+        n = len(loop)
+        for k in range(len(rings) - 1):
+            r0 = rings[k]
+            r1 = rings[k + 1]
+            for i in range(n):
+                j = (i + 1) % n
+                tris += [(r0[i], r0[j], r1[j]), (r0[i], r1[j], r1[i])]
+        if cap_ends and len(loops) == 1 and len(loop) >= 3:
+            for i0, i1, i2 in _triangulate_profile(loop):
+                tris += [(rings[0][i0], rings[0][i1], rings[0][i2]),
+                         (rings[-1][i0], rings[-1][i2], rings[-1][i1])]
     return tris
 
 
 def _beam_curve_section_edges(curve_pts, profile, v_orient=None):
-    rings = _beam_curve_profile_rings(curve_pts, profile, v_orient)
-    if len(rings) < 2:
+    loops = _section_loops(profile)
+    if not loops:
         if curve_pts is not None and len(curve_pts) >= 2:
             return [(curve_pts[i], curve_pts[i+1]) for i in range(len(curve_pts)-1)]
         return []
-    n = len(profile)
     edges = []
-    for k in range(len(rings) - 1):
-        r0 = rings[k]
-        r1 = rings[k + 1]
-        for i in range(n):
-            edges.append((r0[i], r1[i]))
-        if k == 0:
+    for loop in loops:
+        rings = _beam_curve_profile_rings(curve_pts, loop, v_orient)
+        if len(rings) < 2:
+            continue
+        n = len(loop)
+        for k in range(len(rings) - 1):
+            r0 = rings[k]
+            r1 = rings[k + 1]
             for i in range(n):
-                edges.append((r0[i], r0[(i + 1) % n]))
-    for i in range(n):
-        edges.append((rings[-1][i], rings[-1][(i + 1) % n]))
+                edges.append((r0[i], r1[i]))
+            if k == 0:
+                for i in range(n):
+                    edges.append((r0[i], r0[(i + 1) % n]))
+        for i in range(n):
+            edges.append((rings[-1][i], rings[-1][(i + 1) % n]))
     return edges
 
 
@@ -513,34 +529,47 @@ def _triangulate_profile(profile):
     return tris
 
 def _beam_section_tris(p0,p1,profile,v_orient=None,cap_ends=True):
-    if not profile or len(profile)<3: return []
+    tris=[]
+    loops = _section_loops(profile)
+    if not loops: return []
     ex,ey,ez=_beam_local_frame(p0,p1,v_orient)
     def lw(pt,y,z): return pt+float(y)*ey+float(z)*ez
-    r0=[lw(p0,y,z) for y,z in profile]; r1=[lw(p1,y,z) for y,z in profile]; n=len(profile)
-    tris=[]
-    for i in range(n):
-        j=(i+1)%n; tris+=[(r0[i],r0[j],r1[j]),(r0[i],r1[j],r1[i])]
-    if cap_ends:
-        for i0, i1, i2 in _triangulate_profile(profile):
-            tris += [(r0[i0], r0[i1], r0[i2]), (r1[i0], r1[i2], r1[i1])]
+    for loop in loops:
+        if len(loop) < 3:
+            continue
+        r0=[lw(p0,y,z) for y,z in loop]; r1=[lw(p1,y,z) for y,z in loop]; n=len(loop)
+        for i in range(n):
+            j=(i+1)%n; tris+=[(r0[i],r0[j],r1[j]),(r0[i],r1[j],r1[i])]
+        if cap_ends and len(loops) == 1:
+            for i0, i1, i2 in _triangulate_profile(loop):
+                tris += [(r0[i0], r0[i1], r0[i2]), (r1[i0], r1[i2], r1[i1])]
     return tris
 
 def _beam_section_edges(p0,p1,profile,v_orient=None):
-    if not profile or len(profile)<2: return [(p0,p1)]
+    loops = _section_loops(profile)
+    if not loops: return [(p0,p1)]
     ex,ey,ez=_beam_local_frame(p0,p1,v_orient)
     def lw(pt,y,z): return pt+float(y)*ey+float(z)*ez
-    r0=[lw(p0,y,z) for y,z in profile]; r1=[lw(p1,y,z) for y,z in profile]; n=len(profile)
-    return [(r0[i],r1[i]) for i in range(n)]+[(r0[i],r0[(i+1)%n]) for i in range(n)]+[(r1[i],r1[(i+1)%n]) for i in range(n)]
+    edges = []
+    for loop in loops:
+        if len(loop) < 2:
+            continue
+        r0=[lw(p0,y,z) for y,z in loop]; r1=[lw(p1,y,z) for y,z in loop]; n=len(loop)
+        edges += [(r0[i],r1[i]) for i in range(n)]
+        edges += [(r0[i],r0[(i+1)%n]) for i in range(n)]
+        edges += [(r1[i],r1[(i+1)%n]) for i in range(n)]
+    return edges
 
 def _get_beam_profile(elem,model,fallback):
     prop=model.properties.get(elem.pid); v_orient=getattr(elem,'v_orient',None); profile=None; cap_ends=True
-    explicit_section = bool(prop and prop.type in ('PBARL', 'PBEAML') and prop.section and prop.section.profile)
+    explicit_section = bool(prop and prop.type in ('PBARL', 'PBEAML') and prop.section and (prop.section.profile or getattr(prop.section, 'loops', None)))
     if explicit_section:
         s=prop.section; n0=model.nodes.get(elem.nodes[0]); n1=model.nodes.get(elem.nodes[1])
         if n0 and n1:
             L=float(np.linalg.norm(n1.xyz-n0.xyz)); bmax=max(s.b,s.h,1e-30)
             sc=min(1.0,(L*.45)/bmax) if bmax>L*.7 else 1.0
-            profile=[(y*sc,z*sc) for y,z in s.profile]
+            src_loops = getattr(s, 'loops', None) or [s.profile]
+            profile=[[(y*sc,z*sc) for y,z in loop] for loop in src_loops if loop]
             cap_ends = bool(getattr(s, 'cap_ends', True))
     if profile is None:
         mn, mx = model.bbox()
@@ -571,8 +600,57 @@ def _get_beam_profile(elem,model,fallback):
         area_ratio = np.sqrt(max(this_area, 1e-30) / max(max_area, 1e-30))
         h = (total_len / 12.0) * float(np.clip(area_ratio, 0.2, 1.0))
         w = h * 0.5
-        profile=[(-w*0.5,-h*0.5),(w*0.5,-h*0.5),(w*0.5,h*0.5),(-w*0.5,h*0.5)]
+        profile=[[(-w*0.5,-h*0.5),(w*0.5,-h*0.5),(w*0.5,h*0.5),(-w*0.5,h*0.5)]]
     return profile,v_orient,cap_ends
+
+def _beam_section_cdef_points(prop):
+    if prop is None:
+        return None
+    ptype = str(getattr(prop, 'type', '')).upper()
+    params = getattr(prop, 'params', {}) or {}
+    if ptype == 'PBEAM':
+        pts = pbeam_cdef_points(params)
+        if any(abs(v) > 1e-12 for pair in pts.values() for v in pair):
+            return {k: (float(v[0]), float(v[1])) for k, v in pts.items()}
+    sec = getattr(prop, 'section', None)
+    loops = getattr(sec, 'loops', None) or ([getattr(sec, 'profile', [])] if sec is not None else [])
+    flat = [pt for loop in loops for pt in loop]
+    if not flat:
+        return None
+    ys = [float(pt[0]) for pt in flat]
+    zs = [float(pt[1]) for pt in flat]
+    ymin, ymax = min(ys), max(ys)
+    zmin, zmax = min(zs), max(zs)
+    return {
+        'C': (ymax, zmax),
+        'D': (ymax, zmin),
+        'E': (ymin, zmin),
+        'F': (ymin, zmax),
+    }
+
+def _beam_corner_field_value(y, z, cdef_pts, vals):
+    if not cdef_pts or not vals:
+        return 0.0
+    corners = {
+        'ur': max(cdef_pts, key=lambda k: cdef_pts[k][0] + cdef_pts[k][1]),
+        'ul': max(cdef_pts, key=lambda k: cdef_pts[k][1] - cdef_pts[k][0]),
+        'lr': max(cdef_pts, key=lambda k: cdef_pts[k][0] - cdef_pts[k][1]),
+        'll': min(cdef_pts, key=lambda k: cdef_pts[k][0] + cdef_pts[k][1]),
+    }
+    ys = [float(cdef_pts[k][0]) for k in corners.values()]
+    zs = [float(cdef_pts[k][1]) for k in corners.values()]
+    ymin, ymax = min(ys), max(ys)
+    zmin, zmax = min(zs), max(zs)
+    sy = float(np.clip((float(y) - ymin) / max(ymax - ymin, 1e-30), 0.0, 1.0))
+    sz = float(np.clip((float(z) - zmin) / max(zmax - zmin, 1e-30), 0.0, 1.0))
+    vll = float(vals[corners['ll']])
+    vlr = float(vals[corners['lr']])
+    vur = float(vals[corners['ur']])
+    vul = float(vals[corners['ul']])
+    return ((1.0 - sy) * (1.0 - sz) * vll +
+            sy * (1.0 - sz) * vlr +
+            sy * sz * vur +
+            (1.0 - sy) * sz * vul)
 
 # ---------------------------------------------------------------------------
 # Buffer builders
@@ -788,17 +866,28 @@ class MeshRenderer:
                 disp_cmap = cmap
                 for n,v in vals.items():
                     c_node[n] = cmap[int(np.clip((v-lo)/(hi-lo+1e-30),0,1)*255)].tolist()
-            elif result_type in _BEAM_STRESS_KEYS and beam_end_data:
+            elif result_type in _BEAM_STRESS_SURFACE_KEYS and beam_end_data:
                 vals = []
                 for eid, bd in beam_end_data.items():
                     if not getattr(bd, 'stations', None):
                         continue
                     sds = np.array([float(st.sd) for st in bd.stations], dtype=np.float32)
-                    bvals = np.array([float(getattr(st, result_type, 0.0)) for st in bd.stations], dtype=np.float32)
                     if len(sds) == 0:
                         continue
+                    if result_type == 'stress3d':
+                        cvals = np.array([float(getattr(st, 'sxc', 0.0)) for st in bd.stations], dtype=np.float32)
+                        dvals = np.array([float(getattr(st, 'sxd', 0.0)) for st in bd.stations], dtype=np.float32)
+                        evals = np.array([float(getattr(st, 'sxe', 0.0)) for st in bd.stations], dtype=np.float32)
+                        fvals = np.array([float(getattr(st, 'sxf', 0.0)) for st in bd.stations], dtype=np.float32)
+                        bvals = 0.25 * (cvals + dvals + evals + fvals)
+                        vals.extend(cvals.tolist())
+                        vals.extend(dvals.tolist())
+                        vals.extend(evals.tolist())
+                        vals.extend(fvals.tolist())
+                    else:
+                        bvals = np.array([float(getattr(st, result_type, 0.0)) for st in bd.stations], dtype=np.float32)
+                        vals.extend(bvals.tolist())
                     beam_station_vals[eid] = (sds, bvals)
-                    vals.extend(bvals.tolist())
                 if vals:
                     beam_lo, beam_hi = min(vals), max(vals)
                     beam_cmap = cmap
@@ -822,6 +911,8 @@ class MeshRenderer:
                 n0 = elem.nodes[0]; n1 = elem.nodes[1]
                 p0=pos.get(n0); p1=pos.get(n1)
                 if p0 is None or p1 is None: continue
+                beam_surface_contour = (display_mode == 'contour' and beam_cmap is not None and
+                                        result_type in _BEAM_STRESS_SURFACE_KEYS and eid in beam_station_vals)
                 curve_pts = None
                 if (elem.type in ('CBAR', 'CBEAM') and deform_scale > 0 and results and
                         subcase in results.displacements):
@@ -838,11 +929,11 @@ class MeshRenderer:
                             result_type=result_type, phi_yz=curve_phi,
                             model=model, elem=elem, load_sid=load_sid,
                             beam_end_data=beam_end_data)
-                if display_mode in ('wireframe','contour'):
+                if display_mode in ('wireframe','contour') and not beam_surface_contour:
                     # 1D: always line style; contour = colored line
                     col = fc if display_mode=='contour' else wc2
                     if curve_pts is not None and len(curve_pts) >= 2:
-                        if display_mode == 'contour' and beam_cmap is not None and result_type in _BEAM_STRESS_KEYS and eid in beam_station_vals:
+                        if display_mode == 'contour' and beam_cmap is not None and result_type in _BEAM_STRESS_SURFACE_KEYS and eid in beam_station_vals:
                             sds, bvals = beam_station_vals[eid]
                             for i in range(len(curve_pts) - 1):
                                 s0 = float(i) / float(len(curve_pts) - 1)
@@ -879,7 +970,7 @@ class MeshRenderer:
                                 wv['1d'] += [curve_pts[i], curve_pts[i+1]]
                                 wc['1d'] += [col, col]
                     else:
-                        if display_mode == 'contour' and beam_cmap is not None and result_type in _BEAM_STRESS_KEYS and eid in beam_station_vals:
+                        if display_mode == 'contour' and beam_cmap is not None and result_type in _BEAM_STRESS_SURFACE_KEYS and eid in beam_station_vals:
                             sds, bvals = beam_station_vals[eid]
                             nsamp = 11
                             pts_line = [p0 + (p1 - p0) * (float(i) / float(nsamp - 1)) for i in range(nsamp)]
@@ -894,14 +985,48 @@ class MeshRenderer:
                                 wc['1d'] += [c0, c1]
                         else:
                             wv['1d']+=[p0,p1]; wc['1d']+=[col,col]
-                else:  # solid/hidden: extruded section
+                else:  # solid/hidden or beam contour: extruded section
                     prof,vori,cap_ends=_get_beam_profile(elem,model,fallback)
                     tris = (_beam_curve_section_tris(curve_pts, prof, vori, cap_ends)
                             if curve_pts is not None and len(curve_pts) >= 2
                             else _beam_section_tris(p0,p1,prof,vori,cap_ends))
+                    beam_axis = p1 - p0
+                    beam_len = float(np.linalg.norm(beam_axis))
+                    beam_dir = (beam_axis / beam_len).astype(np.float32) if beam_len > 1e-12 else np.array([1.0, 0.0, 0.0], dtype=np.float32)
+                    _, beam_ey, beam_ez = _beam_local_frame(p0, p1, vori)
+                    prop = model.properties.get(getattr(elem, 'pid', 0))
+                    cdef_pts = _beam_section_cdef_points(prop)
+                    sds = bvals = None
+                    corner_series = None
+                    if beam_surface_contour:
+                        sds, bvals = beam_station_vals[eid]
+                        bd = beam_end_data.get(eid) if beam_end_data else None
+                        if bd is not None and getattr(bd, 'stations', None):
+                            corner_series = {
+                                'C': np.array([float(getattr(st, 'sxc', 0.0)) for st in bd.stations], dtype=np.float32),
+                                'D': np.array([float(getattr(st, 'sxd', 0.0)) for st in bd.stations], dtype=np.float32),
+                                'E': np.array([float(getattr(st, 'sxe', 0.0)) for st in bd.stations], dtype=np.float32),
+                                'F': np.array([float(getattr(st, 'sxf', 0.0)) for st in bd.stations], dtype=np.float32),
+                            }
                     for v0,v1,v2 in tris:
                         nm=_face_normal(v0,v1,v2)
-                        for v in(v0,v1,v2): sv['1d'].append(v); sc['1d'].append(fc); sn['1d'].append(nm)
+                        for v in(v0,v1,v2):
+                            sv['1d'].append(v)
+                            if beam_surface_contour and sds is not None and bvals is not None:
+                                sval = float(np.clip(np.dot(v - p0, beam_dir) / max(beam_len, 1e-30), 0.0, 1.0))
+                                if result_type == 'stress3d' and cdef_pts is not None and corner_series is not None:
+                                    center = p0 + beam_dir * (sval * beam_len)
+                                    yloc = float(np.dot(v - center, beam_ey))
+                                    zloc = float(np.dot(v - center, beam_ez))
+                                    corner_vals = {k: float(np.interp(sval, sds, arr)) for k, arr in corner_series.items()}
+                                    bval = _beam_corner_field_value(yloc, zloc, cdef_pts, corner_vals)
+                                else:
+                                    bval = float(np.interp(sval, sds, bvals))
+                                cval = beam_cmap[int(np.clip((bval - beam_lo) / (beam_hi - beam_lo + 1e-30), 0, 1) * 255)].tolist()
+                                sc['1d'].append(cval)
+                            else:
+                                sc['1d'].append(fc)
+                            sn['1d'].append(nm)
                     edges = (_beam_curve_section_edges(curve_pts, prof, vori)
                              if curve_pts is not None and len(curve_pts) >= 2
                              else _beam_section_edges(p0,p1,prof,vori))
@@ -1050,14 +1175,15 @@ class MeshRenderer:
             self.ctx.polygon_offset = (0.0, 0.0)
             self.ctx.disable(moderngl.BLEND)
 
-        if display_mode == 'solid':
+        if display_mode in ('solid', 'contour'):
             p=self._prog_solid
             p['u_mvp'].write(mvp_b)
             p['u_light0'].value=tuple(L0); p['u_light1'].value=tuple(L1); p['u_light2'].value=tuple(L2)
             p['u_ambient'].value=0.38
             self.ctx.enable(moderngl.DEPTH_TEST)
             self.ctx.polygon_offset=(1.0,1.0)
-            for dim in visible_dims:
+            dims_to_draw = visible_dims if display_mode == 'solid' else tuple(d for d in visible_dims if d == '1d')
+            for dim in dims_to_draw:
                 vao,_,cnt=self._solid[dim]
                 if vao and cnt>0: vao.render(moderngl.TRIANGLES)
             self.ctx.polygon_offset=(0.0,0.0)

@@ -1,0 +1,581 @@
+1
+ 
+ 
+ 
+ 
+                                                             
+                        Copyright 2020 Siemens               
+                         All Rights Reserved.                
+                                                             
+               This software and related documentation are   
+                    proprietary to Siemens Industry          
+                             Software Inc.                   
+                                                             
+              Siemens and the Siemens logo are registered    
+           trademarks of Siemens AG. Simcenter is a trademark
+              or registered trademark of Siemens Product     
+               Lifecycle Management Software Inc. or its     
+             subsidiaries in the United States and in other  
+             countries.  NASTRAN is a registered trademark   
+                 of the National Aeronautics and Space       
+                 Administration.  All other trademarks,      
+              registered trademarks or service marks belong  
+                      to their respective holders.           
+                                                             
+           LIMITATIONS TO U.S. GOVERNMENT RIGHTS. UNPUBLISHED
+           - RIGHTS RESERVED UNDER THE COPYRIGHT LAWS OF THE 
+            UNITED STATES. This computer software and related
+               computer software documentation have been     
+            developed exclusively at private expense and are 
+           provided subject to the following rights:  If this
+               computer software and computer  software      
+            documentation qualify as "commercial items" (as  
+             that term is defined in FAR 2.101), their use,  
+            duplication or disclosure by the U.S. Government 
+           is subject to the protections and restrictions as 
+            set forth in the Siemens commercial license for  
+            software and/or documentation, as prescribed in  
+           FAR 12.212 and FAR 27.405(b)(2)(i) (for civilian  
+             agencies) and in DFARS 227.7202-1(a) and DFARS  
+           227.7202-3(a) (for the Department of Defense), or 
+           any successor or similar regulation, as applicable
+           or as amended from time to time.  If this computer
+           software and computer documentation do not qualify
+            as "commercial items", then they are "restricted 
+           computer software" and are provided with "restric-
+            tive rights", and their use, duplication or dis- 
+            closure by the U.S. Government is subject to the 
+            protections and restrictions as set forth in FAR 
+           27.404(b) and FAR 52-227-14 (for civilian agencies
+           ), and DFARS 227.7203-5(c) and DFARS 252.227-7014 
+           (for the Department of Defense), or any successor 
+           or similar regulation, as applicable or as amended
+           from time to time. Siemens Industry Software Inc. 
+           5800 Granite Parkway, Suite 600, Plano, TX 75024  
+ 
+
+                * * * * * * * * * * * * * * * * * * * *
+                * * * * * * * * * * * * * * * * * * * *
+                * *                                 * *
+                * *                                 * *
+                * *                                 * *
+                * *                                 * *
+                * *     Simcenter Nastran 2021.1    * *
+                * *                                 * *
+                * *       VERSION - 1965.0032       * *
+                * *                                 * *
+                * *          FEB 11, 2021           * *
+                * *                                 * *
+                * *                                 * *
+                * *Intel64 Family 6 Model 165 Stepp * *
+                * *                                 * *
+                * *MODEL Intel(R) Core(TM) i5-10600 * *
+                * *                                 * *
+                * *           Windows 10            * *
+                * *                                 * *
+                * *       Compiled for X86-64       * *
+                * *                                 * *
+                * * * * * * * * * * * * * * * * * * * *
+                * * * * * * * * * * * * * * * * * * * *
+1 
+  
+                      Welcome to Simcenter Nastran
+                      ----------------------------
+  
+  
+ This "news" information can be turned off by setting "news=no" in the runtime
+ configuration (RC) file.  The "news" keyword can be set in the system RC file
+ for global, or multi-user control, and in a local file for local control.
+ Individual jobs can be controlled by setting news to yes or no on the command
+ line.
+1                                                                              JUNE  18, 2026  SIMCENTER NASTRAN  2/11/21   PAGE     1
+                                                                                                                                    
+0        N A S T R A N    F I L E    A N D    S Y S T E M    P A R A M E T E R    E C H O                                           
+0                                                                                                                                   
+                                                                                                                                    
+                                                                                                                                    
+     NASTRAN BUFFSIZE=32769 $(J:/FEMAP 2021.2/NASTRAN/CONF/NASTRAN.RCF[4])           
+     NASTRAN BUFFPOOL=5844                                                           
+     NASTRAN DIAGA=128 DIAGB=0 $(J:/FEMAP 2021.2/NASTRAN/CONF/NASTRAN.RCF[11])       
+     NASTRAN REAL=2127167488 $(MEMORY LIMIT FOR MPI AND OTHER SPECIALIZED MODULES)   
+     $-----------------------------------------------------------------------        
+     $ SAP2000 VERIFICATION EXAMPLE 1-004                                            
+     $ FRAME - ROTATED LOCAL AXES                                                    
+     $ SECTION: W12X106  (I33=933 IN^4, I22=301 IN^4)                                
+     $ E = 29000 KIP/IN^2, L = 144 IN                                                
+     $ CANTILEVER; LOCAL-2 AXIS ROTATED 30 DEG FROM GLOBAL Z                         
+     $ LOAD CASES: LC1 W=0.01 K/IN Z, LC2 P=1 KIP Z, LC3 M=240 K-IN Z                
+     $ BERNOULLI BEAM: K1=K2=0 (NO SHEAR DEFORMATION)                                
+     $-----------------------------------------------------------------------        
+1                                                                              JUNE  18, 2026  SIMCENTER NASTRAN  2/11/21   PAGE     2
+                                                                                                                                    
+0        N A S T R A N    E X E C U T I V E    C O N T R O L    E C H O                                                             
+0                                                                                                                                   
+                                                                                                                                    
+                                                                                                                                    
+     SOL 101                                                                                 
+     CEND                                                                                    
+1    SAP2000 EX 1-004 ROTATED LOCAL AXES                                       JUNE  18, 2026  SIMCENTER NASTRAN  2/11/21   PAGE     3
+      W12X106 CANTILEVER 30-DEG ROLL - BERNOULLI                                                                                    
+0                                                                                                                                   
+0                                        C A S E    C O N T R O L    E C H O                                                        
+                 COMMAND                                                                                                            
+                 COUNT                                                                                                              
+                  1        TITLE   = SAP2000 EX 1-004 ROTATED LOCAL AXES                                         
+                  2        SUBTITLE= W12X106 CANTILEVER 30-DEG ROLL - BERNOULLI                                  
+                  3        SPC     = 1                                                                           
+                  4      SUBCASE 1                                                                               
+                  5        LABEL   = LC1 UNIFORM DISTRIBUTED LOAD IN GLOBAL Z                                    
+                  6        LOAD    = 1                                                                           
+                  7        DISP    = ALL                                                                         
+                  8        FORCES  = ALL                                                                         
+                  9        STRES = ALL                                                                           
+                 10        GPFORCES = ALL                                                                        
+                 11      SUBCASE 2                                                                               
+                 12        LABEL   = LC2 POINT LOAD AT FREE END IN GLOBAL Z                                      
+                 13        LOAD    = 2                                                                           
+                 14        DISP    = ALL                                                                         
+                 15        FORCES  = ALL                                                                         
+                 16        STRES = ALL                                                                           
+                 17        GPFORCES = ALL                                                                        
+                 18      SUBCASE 3                                                                               
+                 19        LABEL   = LC3 END MOMENT ABOUT GLOBAL Z                                               
+                 20        LOAD    = 3                                                                           
+                 21        DISP    = ALL                                                                         
+                 22        FORCES  = ALL                                                                         
+                 23        STRES = ALL                                                                           
+                 24        GPFORCES = ALL                                                                        
+                 25      BEGIN BULK                                                                              
+ *** USER WARNING MESSAGE 4699 (XSBFF)
+     THE FREE FIELD BULK DATA ENTRY BELOW HAS A REAL FIELD WITH MORE THAN 8 CHARACTERS.  SOME PRECISION MAY BE LOST.
+     CBEAM, 1, 1, 1, 2, 0.0, -0.5, 0.8660254
+ *** USER WARNING MESSAGE 324 (XSORSO)
+     BLANK ENTRIES ENCOUNTERED WILL BE IGNORED.
+0                             INPUT BULK DATA ENTRY COUNT =          58
+1    SAP2000 EX 1-004 ROTATED LOCAL AXES                                       JUNE  18, 2026  SIMCENTER NASTRAN  2/11/21   PAGE     4
+      W12X106 CANTILEVER 30-DEG ROLL - BERNOULLI                                                                                    
+0                                                                                                                                   
+0                                                 S O R T E D   B U L K   D A T A   E C H O                                         
+                 ENTRY                                                                                                              
+                 COUNT        .   1  ..   2  ..   3  ..   4  ..   5  ..   6  ..   7  ..   8  ..   9  ..  10  .                      
+                    1-        CBEAM   1       1       1       2       0.0     -0.5    .866025                 
+                    2-        FORCE   2       2       0       1.0     0.0     0.0     -1.0                    
+                    3-        GRID    1       0       0.0     0.0     0.0     0                               
+                    4-        GRID    2       0       144.0   0.0     0.0     0                               
+                    5-        MAT1    1       29000.0 11153.8 0.3                                             
+                    6-        MOMENT  3       2       0       240.0   0.0     1.0     0.0                     
+                    7-        PARAM   OGEOM   YES                                                             
+                    8-        PARAM   POST    -1                                                              
+                    9-        PBEAM   1       1       31.2    933.0   301.0   0.0     9.13    0.0      0000001
+                   10-        +00000010.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0      0000002
+                   11-        +0000002YES     1.0     31.2    933.0   301.0   0.0     9.13    0.0      0000003
+                   12-        +0000003.16383  .15494  -.16383 .15494  -.16383 -.15494 .16383  -.15494  0000004
+                   13-        +00000040.0     0.0                                                      0000005
+                   14-        PLOAD1  1       1       FZ      FR      0.0     -0.01   1.0     -0.01           
+                   15-        SPC1    1       123456  1                                                       
+                              ENDDATA 
+0                       TOTAL COUNT=        16
+
+
+                                        M O D E L   S U M M A R Y
+
+                                   NUMBER OF GRID     POINTS   =        2
+ 
+ 
+                                   NUMBER OF CBEAM    ELEMENTS =        1
+ 
+ *** USER INFORMATION MESSAGE 4109 (OUTPBN2)
+     THE LABEL IS NX2021.1 FOR FORTRAN UNIT 12
+     (MAXIMUM SIZE OF FORTRAN RECORDS WRITTEN =        7 WORDS.)
+     (NUMBER OF FORTRAN RECORDS WRITTEN =        8 RECORDS.)
+     (TOTAL DATA WRITTEN FOR TAPE LABEL =       17 WORDS.)
+ *** USER INFORMATION MESSAGE 4114 (OUTPBN2)
+     DATA BLOCK PVT0     WRITTEN ON FORTRAN UNIT  12, TRL =
+                    101                 9                 0                 0                 0                 0                 0
+     (MAXIMUM POSSIBLE FORTRAN RECORD SIZE =    65538 WORDS.)
+     (MAXIMUM SIZE OF FORTRAN RECORDS WRITTEN =        9 WORDS.)
+     (NUMBER OF FORTRAN RECORDS WRITTEN =       19 RECORDS.)
+     (TOTAL DATA WRITTEN FOR DATA BLOCK =       35 WORDS.)
+1    SAP2000 EX 1-004 ROTATED LOCAL AXES                                       JUNE  18, 2026  SIMCENTER NASTRAN  2/11/21   PAGE     5
+      W12X106 CANTILEVER 30-DEG ROLL - BERNOULLI                                                                                    
+0                                                                                                                                   
+0                                                                                                                                   
+                                                                                                                                    
+                                                                                                                                    
+ *** USER INFORMATION MESSAGE 4114 (OUTPBN2)
+     DATA BLOCK CASECC   WRITTEN ON FORTRAN UNIT  12, TRL =
+                    101                 3                 0              1200                 0                 0                 0
+     (MAXIMUM POSSIBLE FORTRAN RECORD SIZE =    65538 WORDS.)
+     (MAXIMUM SIZE OF FORTRAN RECORDS WRITTEN =     1200 WORDS.)
+     (NUMBER OF FORTRAN RECORDS WRITTEN =       29 RECORDS.)
+     (TOTAL DATA WRITTEN FOR DATA BLOCK =     3634 WORDS.)
+ *** USER INFORMATION MESSAGE 4114 (OUTPBN2)
+     DATA BLOCK GEOM1S   WRITTEN ON FORTRAN UNIT  12, TRL =
+                    101                 0                 0                 8                 0                 0                 0
+     (MAXIMUM POSSIBLE FORTRAN RECORD SIZE =    65538 WORDS.)
+     (MAXIMUM SIZE OF FORTRAN RECORDS WRITTEN =       19 WORDS.)
+     (NUMBER OF FORTRAN RECORDS WRITTEN =       24 RECORDS.)
+     (TOTAL DATA WRITTEN FOR DATA BLOCK =       52 WORDS.)
+ *** USER INFORMATION MESSAGE 4114 (OUTPBN2)
+     DATA BLOCK GEOM2S   WRITTEN ON FORTRAN UNIT  12, TRL =
+                    102                 0                 0                 0              1024                 0                 0
+     (MAXIMUM POSSIBLE FORTRAN RECORD SIZE =    65538 WORDS.)
+     (MAXIMUM SIZE OF FORTRAN RECORDS WRITTEN =       21 WORDS.)
+     (NUMBER OF FORTRAN RECORDS WRITTEN =       24 RECORDS.)
+     (TOTAL DATA WRITTEN FOR DATA BLOCK =       54 WORDS.)
+ *** USER INFORMATION MESSAGE 4114 (OUTPBN2)
+     DATA BLOCK GEOM3S   WRITTEN ON FORTRAN UNIT  12, TRL =
+                    103                 0                 0                65                 0              2048                 0
+     (MAXIMUM POSSIBLE FORTRAN RECORD SIZE =    65538 WORDS.)
+     (MAXIMUM SIZE OF FORTRAN RECORDS WRITTEN =       11 WORDS.)
+     (NUMBER OF FORTRAN RECORDS WRITTEN =       34 RECORDS.)
+     (TOTAL DATA WRITTEN FOR DATA BLOCK =       72 WORDS.)
+ *** USER INFORMATION MESSAGE 4114 (OUTPBN2)
+     DATA BLOCK GEOM4S   WRITTEN ON FORTRAN UNIT  12, TRL =
+                    104                 0                 0                 0                64                 0                 0
+     (MAXIMUM POSSIBLE FORTRAN RECORD SIZE =    65538 WORDS.)
+     (MAXIMUM SIZE OF FORTRAN RECORDS WRITTEN =        8 WORDS.)
+     (NUMBER OF FORTRAN RECORDS WRITTEN =       24 RECORDS.)
+     (TOTAL DATA WRITTEN FOR DATA BLOCK =       41 WORDS.)
+ *** USER INFORMATION MESSAGE 4114 (OUTPBN2)
+     DATA BLOCK EPTS     WRITTEN ON FORTRAN UNIT  12, TRL =
+                    101                 0                 0                 0              1024                 0                 0
+     (MAXIMUM POSSIBLE FORTRAN RECORD SIZE =    65538 WORDS.)
+     (MAXIMUM SIZE OF FORTRAN RECORDS WRITTEN =      200 WORDS.)
+     (NUMBER OF FORTRAN RECORDS WRITTEN =       24 RECORDS.)
+     (TOTAL DATA WRITTEN FOR DATA BLOCK =      233 WORDS.)
+ *** USER INFORMATION MESSAGE 4114 (OUTPBN2)
+     DATA BLOCK MPTS     WRITTEN ON FORTRAN UNIT  12, TRL =
+                    101             32768                 0                 0                 0                 0                 0
+     (MAXIMUM POSSIBLE FORTRAN RECORD SIZE =    65538 WORDS.)
+     (MAXIMUM SIZE OF FORTRAN RECORDS WRITTEN =       15 WORDS.)
+     (NUMBER OF FORTRAN RECORDS WRITTEN =       24 RECORDS.)
+     (TOTAL DATA WRITTEN FOR DATA BLOCK =       48 WORDS.)
+1    SAP2000 EX 1-004 ROTATED LOCAL AXES                                       JUNE  18, 2026  SIMCENTER NASTRAN  2/11/21   PAGE     6
+      W12X106 CANTILEVER 30-DEG ROLL - BERNOULLI                                                                                    
+0                                                                                                                                   
+0                                                                                                                                   
+                                                                                                                                    
+                                                                                                                                    
+ *** USER INFORMATION MESSAGE 4114 (OUTPBN2)
+     DATA BLOCK BGPDTS   WRITTEN ON FORTRAN UNIT  12, TRL =
+                    101                 2                 0                 0                 0                 0                 0
+     (MAXIMUM POSSIBLE FORTRAN RECORD SIZE =    65538 WORDS.)
+     (MAXIMUM SIZE OF FORTRAN RECORDS WRITTEN =        8 WORDS.)
+     (NUMBER OF FORTRAN RECORDS WRITTEN =       19 RECORDS.)
+     (TOTAL DATA WRITTEN FOR DATA BLOCK =       34 WORDS.)
+ *** USER INFORMATION MESSAGE 4114 (OUTPBN2)
+     DATA BLOCK EQEXINS  WRITTEN ON FORTRAN UNIT  12, TRL =
+                    101                 2                 0                 0                 0                 0                 0
+     (MAXIMUM POSSIBLE FORTRAN RECORD SIZE =    65538 WORDS.)
+     (MAXIMUM SIZE OF FORTRAN RECORDS WRITTEN =        7 WORDS.)
+     (NUMBER OF FORTRAN RECORDS WRITTEN =       24 RECORDS.)
+     (TOTAL DATA WRITTEN FOR DATA BLOCK =       38 WORDS.)
+1    SAP2000 EX 1-004 ROTATED LOCAL AXES                                       JUNE  18, 2026  SIMCENTER NASTRAN  2/11/21   PAGE     7
+      W12X106 CANTILEVER 30-DEG ROLL - BERNOULLI                                                                                    
+0                                                                                                                                   
+ *** USER INFORMATION MESSAGE 7310 (VECPRN)
+     ORIGIN OF SUPERELEMENT BASIC COORDINATE SYSTEM WILL BE USED AS REFERENCE LOCATION.
+     RESULTANTS ABOUT ORIGIN OF SUPERELEMENT BASIC COORDINATE SYSTEM IN SUPERELEMENT BASIC SYSTEM COORDINATES.
+0                                                  OLOAD    RESULTANT       
+  SUBCASE/    LOAD
+  DAREA ID    TYPE       T1            T2            T3            R1            R2            R3
+0        1     FX    0.000000E+00     ----          ----          ----       0.000000E+00  0.000000E+00                             
+               FY       ----      -3.302282E-19     ----       0.000000E+00     ----       2.915794E-14                             
+               FZ       ----          ----      -1.440000E+00  0.000000E+00  1.036800E+02     ----                                  
+               MX       ----          ----          ----       0.000000E+00     ----          ----                                  
+               MY       ----          ----          ----          ----       3.979039E-13     ----                                  
+               MZ       ----          ----          ----          ----          ----      -3.996797E-14                             
+             TOTALS  0.000000E+00 -3.302282E-19 -1.440000E+00  0.000000E+00  1.036800E+02 -1.081003E-14                             
+0        2     FX    0.000000E+00     ----          ----          ----       0.000000E+00  0.000000E+00                             
+               FY       ----       0.000000E+00     ----       0.000000E+00     ----       0.000000E+00                             
+               FZ       ----          ----      -1.000000E+00  0.000000E+00  1.440000E+02     ----                                  
+               MX       ----          ----          ----       0.000000E+00     ----          ----                                  
+               MY       ----          ----          ----          ----       0.000000E+00     ----                                  
+               MZ       ----          ----          ----          ----          ----       0.000000E+00                             
+             TOTALS  0.000000E+00  0.000000E+00 -1.000000E+00  0.000000E+00  1.440000E+02  0.000000E+00                             
+0        3     FX    0.000000E+00     ----          ----          ----       0.000000E+00  0.000000E+00                             
+               FY       ----       0.000000E+00     ----       0.000000E+00     ----       0.000000E+00                             
+               FZ       ----          ----       0.000000E+00  0.000000E+00  0.000000E+00     ----                                  
+               MX       ----          ----          ----       0.000000E+00     ----          ----                                  
+               MY       ----          ----          ----          ----       2.400000E+02     ----                                  
+               MZ       ----          ----          ----          ----          ----       0.000000E+00                             
+             TOTALS  0.000000E+00  0.000000E+00  0.000000E+00  0.000000E+00  2.400000E+02  0.000000E+00                             
+ *** USER INFORMATION MESSAGE - SINGULARITIES FOUND USING EIGENVALUE METHOD
+ ***       0 SINGULARITIES FOUND         0 SINGULARITIES ELIMINATED
+1    SAP2000 EX 1-004 ROTATED LOCAL AXES                                       JUNE  18, 2026  SIMCENTER NASTRAN  2/11/21   PAGE     8
+      W12X106 CANTILEVER 30-DEG ROLL - BERNOULLI                                                                                    
+0                                                                                                            SUBCASE 1              
+ *** SYSTEM INFORMATION MESSAGE 6916 (DFMSYN)
+     UNABLE TO EXECUTE METIS REORDERING BECAUSE THE MATRIX DENSITY IS TOO HIGH: 100 %.
+     DECOMP ORDERING METHOD CHOSEN: DEFAULT, ORDERING METHOD USED: MMD
+ *** USER INFORMATION MESSAGE 5293 (SSG3A)
+    FOR DATA BLOCK KLL     
+    LOAD SEQ. NO.             EPSILON              EXTERNAL WORK      EPSILONS LARGER THAN 0.001 ARE FLAGGED WITH ASTERISKS
+                1          1.0577701E-15          8.4817343E-03
+                2          9.7643640E-16          2.8048063E-02
+                3         -1.9355838E-16          2.3373386E-01
+1    SAP2000 EX 1-004 ROTATED LOCAL AXES                                       JUNE  18, 2026  SIMCENTER NASTRAN  2/11/21   PAGE     9
+      W12X106 CANTILEVER 30-DEG ROLL - BERNOULLI                                                                                    
+0                                                                                                                                   
+ *** USER INFORMATION MESSAGE 7310 (VECPRN)
+     ORIGIN OF SUPERELEMENT BASIC COORDINATE SYSTEM WILL BE USED AS REFERENCE LOCATION.
+     RESULTANTS ABOUT ORIGIN OF SUPERELEMENT BASIC COORDINATE SYSTEM IN SUPERELEMENT BASIC SYSTEM COORDINATES.
+0                                                  SPCFORCE RESULTANT       
+  SUBCASE/    LOAD
+  DAREA ID    TYPE       T1            T2            T3            R1            R2            R3
+0        1     FX    0.000000E+00     ----          ----          ----       0.000000E+00  0.000000E+00                             
+               FY       ----       2.028159E-16     ----       0.000000E+00     ----       0.000000E+00                             
+               FZ       ----          ----       1.440000E+00  0.000000E+00  0.000000E+00     ----                                  
+               MX       ----          ----          ----       0.000000E+00     ----          ----                                  
+               MY       ----          ----          ----          ----      -1.036800E+02     ----                                  
+               MZ       ----          ----          ----          ----          ----       2.098924E-14                             
+             TOTALS  0.000000E+00  2.028159E-16  1.440000E+00  0.000000E+00 -1.036800E+02  2.098924E-14                             
+0        2     FX    0.000000E+00     ----          ----          ----       0.000000E+00  0.000000E+00                             
+               FY       ----       3.330669E-16     ----       0.000000E+00     ----       0.000000E+00                             
+               FZ       ----          ----       1.000000E+00  0.000000E+00  0.000000E+00     ----                                  
+               MX       ----          ----          ----       0.000000E+00     ----          ----                                  
+               MY       ----          ----          ----          ----      -1.440000E+02     ----                                  
+               MZ       ----          ----          ----          ----          ----       4.263256E-14                             
+             TOTALS  0.000000E+00  3.330669E-16  1.000000E+00  0.000000E+00 -1.440000E+02  4.263256E-14                             
+0        3     FX    0.000000E+00     ----          ----          ----       0.000000E+00  0.000000E+00                             
+               FY       ----       1.150011E-15     ----       0.000000E+00     ----       0.000000E+00                             
+               FZ       ----          ----       8.560515E-16  0.000000E+00  0.000000E+00     ----                                  
+               MX       ----          ----          ----       0.000000E+00     ----          ----                                  
+               MY       ----          ----          ----          ----      -2.400000E+02     ----                                  
+               MZ       ----          ----          ----          ----          ----       1.705303E-13                             
+             TOTALS  0.000000E+00  1.150011E-15  8.560515E-16  0.000000E+00 -2.400000E+02  1.705303E-13                             
+1    SAP2000 EX 1-004 ROTATED LOCAL AXES                                       JUNE  18, 2026  SIMCENTER NASTRAN  2/11/21   PAGE    10
+      W12X106 CANTILEVER 30-DEG ROLL - BERNOULLI                                                                                    
+0                                                                                                                                   
+ *** USER INFORMATION MESSAGE 7310 (VECPRN)
+     ORIGIN OF SUPERELEMENT BASIC COORDINATE SYSTEM WILL BE USED AS REFERENCE LOCATION.
+     RESULTANTS ABOUT ORIGIN OF SUPERELEMENT BASIC COORDINATE SYSTEM IN SUPERELEMENT BASIC SYSTEM COORDINATES.
+0                                                  MPCFORCE RESULTANT       
+  SUBCASE/    LOAD
+  DAREA ID    TYPE       T1            T2            T3            R1            R2            R3
+0        1     FX    0.000000E+00     ----          ----          ----       0.000000E+00  0.000000E+00                             
+               FY       ----       0.000000E+00     ----       0.000000E+00     ----       0.000000E+00                             
+               FZ       ----          ----       0.000000E+00  0.000000E+00  0.000000E+00     ----                                  
+               MX       ----          ----          ----       0.000000E+00     ----          ----                                  
+               MY       ----          ----          ----          ----       0.000000E+00     ----                                  
+               MZ       ----          ----          ----          ----          ----       0.000000E+00                             
+             TOTALS  0.000000E+00  0.000000E+00  0.000000E+00  0.000000E+00  0.000000E+00  0.000000E+00                             
+0        2     FX    0.000000E+00     ----          ----          ----       0.000000E+00  0.000000E+00                             
+               FY       ----       0.000000E+00     ----       0.000000E+00     ----       0.000000E+00                             
+               FZ       ----          ----       0.000000E+00  0.000000E+00  0.000000E+00     ----                                  
+               MX       ----          ----          ----       0.000000E+00     ----          ----                                  
+               MY       ----          ----          ----          ----       0.000000E+00     ----                                  
+               MZ       ----          ----          ----          ----          ----       0.000000E+00                             
+             TOTALS  0.000000E+00  0.000000E+00  0.000000E+00  0.000000E+00  0.000000E+00  0.000000E+00                             
+0        3     FX    0.000000E+00     ----          ----          ----       0.000000E+00  0.000000E+00                             
+               FY       ----       0.000000E+00     ----       0.000000E+00     ----       0.000000E+00                             
+               FZ       ----          ----       0.000000E+00  0.000000E+00  0.000000E+00     ----                                  
+               MX       ----          ----          ----       0.000000E+00     ----          ----                                  
+               MY       ----          ----          ----          ----       0.000000E+00     ----                                  
+               MZ       ----          ----          ----          ----          ----       0.000000E+00                             
+             TOTALS  0.000000E+00  0.000000E+00  0.000000E+00  0.000000E+00  0.000000E+00  0.000000E+00                             
+ *** USER INFORMATION MESSAGE 4114 (OUTPBN2)
+     DATA BLOCK OUGV1    WRITTEN ON FORTRAN UNIT  12, TRL =
+                    101                 0                48                18                26                 0                 1
+     (MAXIMUM POSSIBLE FORTRAN RECORD SIZE =    65538 WORDS.)
+     (MAXIMUM SIZE OF FORTRAN RECORDS WRITTEN =      146 WORDS.)
+     (NUMBER OF FORTRAN RECORDS WRITTEN =       44 RECORDS.)
+     (TOTAL DATA WRITTEN FOR DATA BLOCK =      537 WORDS.)
+1    SAP2000 EX 1-004 ROTATED LOCAL AXES                                       JUNE  18, 2026  SIMCENTER NASTRAN  2/11/21   PAGE    11
+      W12X106 CANTILEVER 30-DEG ROLL - BERNOULLI                                                                                    
+0     LC1 UNIFORM DISTRIBUTED LOAD IN GLOBAL Z                                                               SUBCASE 1              
+ 
+                                             D I S P L A C E M E N T   V E C T O R
+ 
+      POINT ID.   TYPE          T1             T2             T3             R1             R2             R3
+             1      G      0.0            0.0            0.0            0.0            0.0            0.0
+             2      G      0.0           -1.806058E-02  -3.029191E-02   0.0            2.804806E-04  -1.672276E-04
+1    SAP2000 EX 1-004 ROTATED LOCAL AXES                                       JUNE  18, 2026  SIMCENTER NASTRAN  2/11/21   PAGE    12
+      W12X106 CANTILEVER 30-DEG ROLL - BERNOULLI                                                                                    
+0     LC2 POINT LOAD AT FREE END IN GLOBAL Z                                                                 SUBCASE 2              
+ 
+                                             D I S P L A C E M E N T   V E C T O R
+ 
+      POINT ID.   TYPE          T1             T2             T3             R1             R2             R3
+             1      G      0.0            0.0            0.0            0.0            0.0            0.0
+             2      G      0.0           -3.344552E-02  -5.609613E-02   0.0            5.843347E-04  -3.483908E-04
+1    SAP2000 EX 1-004 ROTATED LOCAL AXES                                       JUNE  18, 2026  SIMCENTER NASTRAN  2/11/21   PAGE    13
+      W12X106 CANTILEVER 30-DEG ROLL - BERNOULLI                                                                                    
+0     LC3 END MOMENT ABOUT GLOBAL Z                                                                          SUBCASE 3              
+ 
+                                             D I S P L A C E M E N T   V E C T O R
+ 
+      POINT ID.   TYPE          T1             T2             T3             R1             R2             R3
+             1      G      0.0            0.0            0.0            0.0            0.0            0.0
+             2      G      0.0           -8.361379E-02  -1.402403E-01   0.0            1.947782E-03  -1.161303E-03
+1    SAP2000 EX 1-004 ROTATED LOCAL AXES                                       JUNE  18, 2026  SIMCENTER NASTRAN  2/11/21   PAGE    14
+      W12X106 CANTILEVER 30-DEG ROLL - BERNOULLI                                                                                    
+0                                                                                                                                   
+1    SAP2000 EX 1-004 ROTATED LOCAL AXES                                       JUNE  18, 2026  SIMCENTER NASTRAN  2/11/21   PAGE    15
+      W12X106 CANTILEVER 30-DEG ROLL - BERNOULLI                                                                                    
+0     LC1 UNIFORM DISTRIBUTED LOAD IN GLOBAL Z                                                               SUBCASE 1              
+ 
+                                 F O R C E S   I N   B E A M   E L E M E N T S        ( C B E A M )
+                    STAT DIST/   - BENDING MOMENTS -            - WEB  SHEARS -           AXIAL          TOTAL          WARPING
+   ELEMENT-ID  GRID   LENGTH    PLANE 1       PLANE 2        PLANE 1       PLANE 2        FORCE          TORQUE         TORQUE
+0         1
+                  1   0.000   -8.978950E+01  5.184002E+01  -1.247076E+00  7.200003E-01   0.0            0.0            0.0
+                  2   1.000   -3.552714E-14 -7.105427E-15   0.0           1.665335E-16   0.0            0.0            0.0
+1    SAP2000 EX 1-004 ROTATED LOCAL AXES                                       JUNE  18, 2026  SIMCENTER NASTRAN  2/11/21   PAGE    16
+      W12X106 CANTILEVER 30-DEG ROLL - BERNOULLI                                                                                    
+0     LC2 POINT LOAD AT FREE END IN GLOBAL Z                                                                 SUBCASE 2              
+ 
+                                 F O R C E S   I N   B E A M   E L E M E N T S        ( C B E A M )
+                    STAT DIST/   - BENDING MOMENTS -            - WEB  SHEARS -           AXIAL          TOTAL          WARPING
+   ELEMENT-ID  GRID   LENGTH    PLANE 1       PLANE 2        PLANE 1       PLANE 2        FORCE          TORQUE         TORQUE
+0         1
+                  1   0.000   -1.247076E+02  7.200003E+01  -8.660253E-01  5.000002E-01   0.0            0.0            0.0
+                  2   1.000   -8.526513E-14  1.421085E-14  -8.660253E-01  5.000002E-01   0.0            0.0            0.0
+1    SAP2000 EX 1-004 ROTATED LOCAL AXES                                       JUNE  18, 2026  SIMCENTER NASTRAN  2/11/21   PAGE    17
+      W12X106 CANTILEVER 30-DEG ROLL - BERNOULLI                                                                                    
+0     LC3 END MOMENT ABOUT GLOBAL Z                                                                          SUBCASE 3              
+ 
+                                 F O R C E S   I N   B E A M   E L E M E N T S        ( C B E A M )
+                    STAT DIST/   - BENDING MOMENTS -            - WEB  SHEARS -           AXIAL          TOTAL          WARPING
+   ELEMENT-ID  GRID   LENGTH    PLANE 1       PLANE 2        PLANE 1       PLANE 2        FORCE          TORQUE         TORQUE
+0         1
+                  1   0.000   -2.078461E+02  1.200000E+02   0.0           8.881784E-16   0.0            0.0            0.0
+                  2   1.000   -2.078461E+02  1.200000E+02   0.0           8.881784E-16   0.0            0.0            0.0
+1    SAP2000 EX 1-004 ROTATED LOCAL AXES                                       JUNE  18, 2026  SIMCENTER NASTRAN  2/11/21   PAGE    18
+      W12X106 CANTILEVER 30-DEG ROLL - BERNOULLI                                                                                    
+0                                                                                                                                   
+1    SAP2000 EX 1-004 ROTATED LOCAL AXES                                       JUNE  18, 2026  SIMCENTER NASTRAN  2/11/21   PAGE    19
+      W12X106 CANTILEVER 30-DEG ROLL - BERNOULLI                                                                                    
+0     LC1 UNIFORM DISTRIBUTED LOAD IN GLOBAL Z                                                               SUBCASE 1              
+ 
+                                  S T R E S S E S   I N   B E A M   E L E M E N T S        ( C B E A M )
+                    STAT DIST/
+   ELEMENT-ID  GRID   LENGTH    SXC           SXD           SXE           SXF           S-MAX         S-MIN         M.S.-T   M.S.-C
+0         1
+                  1   0.000    0.0           0.0           0.0           0.0           0.0           0.0                   
+                  2   1.000    9.540979E-18 -1.734723E-18 -9.540979E-18  1.734723E-18  9.540979E-18 -9.540979E-18          
+1    SAP2000 EX 1-004 ROTATED LOCAL AXES                                       JUNE  18, 2026  SIMCENTER NASTRAN  2/11/21   PAGE    20
+      W12X106 CANTILEVER 30-DEG ROLL - BERNOULLI                                                                                    
+0     LC2 POINT LOAD AT FREE END IN GLOBAL Z                                                                 SUBCASE 2              
+ 
+                                  S T R E S S E S   I N   B E A M   E L E M E N T S        ( C B E A M )
+                    STAT DIST/
+   ELEMENT-ID  GRID   LENGTH    SXC           SXD           SXE           SXF           S-MAX         S-MIN         M.S.-T   M.S.-C
+0         1
+                  1   0.000    0.0           0.0           0.0           0.0           0.0           0.0                   
+                  2   1.000    7.657069E-18 -2.228717E-17 -7.657069E-18  2.228717E-17  2.228717E-17 -2.228717E-17          
+1    SAP2000 EX 1-004 ROTATED LOCAL AXES                                       JUNE  18, 2026  SIMCENTER NASTRAN  2/11/21   PAGE    21
+      W12X106 CANTILEVER 30-DEG ROLL - BERNOULLI                                                                                    
+0     LC3 END MOMENT ABOUT GLOBAL Z                                                                          SUBCASE 3              
+ 
+                                  S T R E S S E S   I N   B E A M   E L E M E N T S        ( C B E A M )
+                    STAT DIST/
+   ELEMENT-ID  GRID   LENGTH    SXC           SXD           SXE           SXF           S-MAX         S-MIN         M.S.-T   M.S.-C
+0         1
+                  1   0.000    0.0           0.0           0.0           0.0           0.0           0.0                   
+                  2   1.000   -2.527342E-02 -9.826682E-02  2.527342E-02  9.826682E-02  9.826682E-02 -9.826682E-02          
+1    SAP2000 EX 1-004 ROTATED LOCAL AXES                                       JUNE  18, 2026  SIMCENTER NASTRAN  2/11/21   PAGE    22
+      W12X106 CANTILEVER 30-DEG ROLL - BERNOULLI                                                                                    
+0                                                                                                                                   
+1    SAP2000 EX 1-004 ROTATED LOCAL AXES                                       JUNE  18, 2026  SIMCENTER NASTRAN  2/11/21   PAGE    23
+      W12X106 CANTILEVER 30-DEG ROLL - BERNOULLI                                                                                    
+0     LC1 UNIFORM DISTRIBUTED LOAD IN GLOBAL Z                                                               SUBCASE 1              
+ 
+                                          G R I D   P O I N T   F O R C E   B A L A N C E
+ 
+   POINT-ID    ELEMENT-ID     SOURCE             T1             T2             T3             R1             R2             R3
+          1                  APP-LOAD       0.0           -2.028159E-16  -7.200000E-01   0.0            1.728000E+01  -2.098924E-14
+          1                  F-OF-SPC       0.0            2.028159E-16   1.440000E+00   0.0           -1.036800E+02   2.098924E-14
+          1             1    BEAM           0.0            0.0           -7.200000E-01   0.0            8.640000E+01   3.552714E-15
+          1                  *TOTALS*       0.0            0.0           -3.330669E-16   0.0           -1.421085E-14   3.552714E-15
+0         2                  APP-LOAD       0.0            2.024857E-16  -7.200000E-01   0.0           -1.728000E+01  -1.897873E-14
+          2             1    BEAM           0.0            1.110223E-16   7.200000E-01   0.0            1.728000E+01   1.421085E-14
+          2                  *TOTALS*       0.0            3.135080E-16   3.330669E-16   0.0           -1.065814E-14  -4.767878E-15
+1    SAP2000 EX 1-004 ROTATED LOCAL AXES                                       JUNE  18, 2026  SIMCENTER NASTRAN  2/11/21   PAGE    24
+      W12X106 CANTILEVER 30-DEG ROLL - BERNOULLI                                                                                    
+0     LC2 POINT LOAD AT FREE END IN GLOBAL Z                                                                 SUBCASE 2              
+ 
+                                          G R I D   P O I N T   F O R C E   B A L A N C E
+ 
+   POINT-ID    ELEMENT-ID     SOURCE             T1             T2             T3             R1             R2             R3
+          1                  F-OF-SPC       0.0            3.330669E-16   1.000000E+00   0.0           -1.440000E+02   4.263256E-14
+          1             1    BEAM           0.0           -2.220446E-16  -1.000000E+00   0.0            1.440000E+02  -4.263256E-14
+          1                  *TOTALS*       0.0            1.110223E-16  -4.440892E-16   0.0            2.842171E-14   0.0
+0         2                  APP-LOAD       0.0            0.0           -1.000000E+00   0.0            0.0            0.0
+          2             1    BEAM           0.0            4.440892E-16   1.000000E+00   0.0            0.0           -2.842171E-14
+          2                  *TOTALS*       0.0            4.440892E-16   8.881784E-16   0.0            0.0           -2.842171E-14
+1    SAP2000 EX 1-004 ROTATED LOCAL AXES                                       JUNE  18, 2026  SIMCENTER NASTRAN  2/11/21   PAGE    25
+      W12X106 CANTILEVER 30-DEG ROLL - BERNOULLI                                                                                    
+0     LC3 END MOMENT ABOUT GLOBAL Z                                                                          SUBCASE 3              
+ 
+                                          G R I D   P O I N T   F O R C E   B A L A N C E
+ 
+   POINT-ID    ELEMENT-ID     SOURCE             T1             T2             T3             R1             R2             R3
+          1                  F-OF-SPC       0.0            1.150011E-15   8.560515E-16   0.0           -2.400000E+02   1.705303E-13
+          1             1    BEAM           0.0           -1.776357E-15   4.440892E-16   0.0            2.400000E+02  -1.705303E-13
+          1                  *TOTALS*       0.0           -6.263454E-16   1.300141E-15   0.0           -2.842171E-14   0.0
+0         2                  APP-LOAD       0.0            0.0            0.0            0.0            2.400000E+02   0.0
+          2             1    BEAM           0.0            1.776357E-15  -4.440892E-16   0.0           -2.400000E+02  -5.684342E-14
+          2                  *TOTALS*       0.0            1.776357E-15  -4.440892E-16   0.0            5.684342E-14  -5.684342E-14
+1    SAP2000 EX 1-004 ROTATED LOCAL AXES                                       JUNE  18, 2026  SIMCENTER NASTRAN  2/11/21   PAGE    26
+      W12X106 CANTILEVER 30-DEG ROLL - BERNOULLI                                                                                    
+0                                                                                                                                   
+ *** USER INFORMATION MESSAGE 4114 (OUTPBN2)
+     DATA BLOCK OGPFB1   WRITTEN ON FORTRAN UNIT  12, TRL =
+                    102                 7                 3                 0                 0                 1                 0
+     (MAXIMUM POSSIBLE FORTRAN RECORD SIZE =    65538 WORDS.)
+     (MAXIMUM SIZE OF FORTRAN RECORDS WRITTEN =      146 WORDS.)
+     (NUMBER OF FORTRAN RECORDS WRITTEN =       44 RECORDS.)
+     (TOTAL DATA WRITTEN FOR DATA BLOCK =      674 WORDS.)
+ *** USER INFORMATION MESSAGE 4114 (OUTPBN2)
+     DATA BLOCK OEF1X    WRITTEN ON FORTRAN UNIT  12, TRL =
+                    101                 0                 3                 1                 0                 0                 0
+     (MAXIMUM POSSIBLE FORTRAN RECORD SIZE =    65538 WORDS.)
+     (MAXIMUM SIZE OF FORTRAN RECORDS WRITTEN =      146 WORDS.)
+     (NUMBER OF FORTRAN RECORDS WRITTEN =       44 RECORDS.)
+     (TOTAL DATA WRITTEN FOR DATA BLOCK =      784 WORDS.)
+ *** USER INFORMATION MESSAGE 4114 (OUTPBN2)
+     DATA BLOCK OES1X1   WRITTEN ON FORTRAN UNIT  12, TRL =
+                    101                 0                 3                 1                 0                 0                 0
+     (MAXIMUM POSSIBLE FORTRAN RECORD SIZE =    65538 WORDS.)
+     (MAXIMUM SIZE OF FORTRAN RECORDS WRITTEN =      146 WORDS.)
+     (NUMBER OF FORTRAN RECORDS WRITTEN =       44 RECORDS.)
+     (TOTAL DATA WRITTEN FOR DATA BLOCK =      817 WORDS.)
+ *** USER INFORMATION MESSAGE 4110 (OUTPBN2)
+                                 END-OF-DATA SIMULATION ON FORTRAN UNIT 12
+                                 (MAXIMUM SIZE OF FORTRAN RECORDS WRITTEN =      1 WORDS.)
+                                       (NUMBER OF FORTRAN RECORDS WRITTEN =      1 RECORDS.)
+                                       (TOTAL DATA WRITTEN FOR EOF MARKER =      1 WORDS.)
+1    SAP2000 EX 1-004 ROTATED LOCAL AXES                                       JUNE  18, 2026  SIMCENTER NASTRAN  2/11/21   PAGE    27
+      W12X106 CANTILEVER 30-DEG ROLL - BERNOULLI                                                                                    
+0                                                                                                                                   
+ * * * *  D B D I C T   P R I N T  * * * *      SUBDMAP = PRTSUM  ,  DMAP STATEMENT NO.     28
+
+
+
+0                                   * * * *  A N A L Y S I S  S U M M A R Y  T A B L E  * * * *
+0 SEID  PEID PROJ VERS APRCH      SEMG SEMR SEKR SELG SELR MODES DYNRED SOLLIN PVALID SOLNL LOOPID DESIGN CYCLE SENSITIVITY
+ --------------------------------------------------------------------------------------------------------------------------
+     0     0    1    1 '        '    T    T    T    T    T     F      F      T      0     F     -1            0           F
+0SEID = SUPERELEMENT ID.
+ PEID = PRIMARY SUPERELEMENT ID OF IMAGE SUPERELEMENT.
+ PROJ = PROJECT ID NUMBER.
+ VERS = VERSION ID.
+ APRCH = BLANK FOR STRUCTURAL ANALYSIS.  HEAT FOR HEAT TRANSFER ANALYSIS.
+ SEMG = STIFFNESS AND MASS MATRIX GENERATION STEP.
+ SEMR = MASS MATRIX REDUCTION STEP (INCLUDES EIGENVALUE SOLUTION FOR MODES).
+ SEKR = STIFFNESS MATRIX REDUCTION STEP.
+ SELG = LOAD MATRIX GENERATION STEP.
+ SELR = LOAD MATRIX REDUCTION STEP. 
+ MODES = T (TRUE) IF NORMAL MODES OR BUCKLING MODES CALCULATED.
+ DYNRED = T (TRUE) MEANS GENERALIZED DYNAMIC AND/OR COMPONENT MODE REDUCTION PERFORMED.
+ SOLLIN = T (TRUE) IF LINEAR SOLUTION EXISTS IN DATABASE.
+ PVALID = P-DISTRIBUTION ID OF P-VALUE FOR P-ELEMENTS
+ LOOPID = THE LAST LOOPID VALUE USED IN THE NONLINEAR ANALYSIS.  USEFUL FOR RESTARTS.
+ SOLNL = T (TRUE) IF NONLINEAR SOLUTION EXISTS IN DATABASE.
+ DESIGN CYCLE = THE LAST DESIGN CYCLE (ONLY VALID IN OPTIMIZATION).
+ SENSITIVITY = SENSITIVITY MATRIX GENERATION FLAG.
+1                                        * * * END OF JOB * * *
+ 
+ 

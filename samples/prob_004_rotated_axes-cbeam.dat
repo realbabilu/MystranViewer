@@ -1,0 +1,94 @@
+$-----------------------------------------------------------------------
+$ SAP2000 Verification Example 1-004
+$ FRAME - ROTATED LOCAL AXES
+$ Section: W12X106  (I33=933 in^4, I22=301 in^4)
+$ E = 29000 kip/in^2, L = 144 in
+$ Cantilever; local-2 axis rotated 30 deg from global Z
+$ Load cases: LC1 w=0.01 k/in Z, LC2 P=1 kip Z, LC3 M=240 k-in Z
+$ Bernoulli beam: K1=K2=0 (no shear deformation)
+$-----------------------------------------------------------------------
+SOL 101
+CEND
+  TITLE   = SAP2000 Ex 1-004 Rotated Local Axes
+  SUBTITLE= W12X106 cantilever 30-deg roll - Bernoulli
+  SPC     = 1
+SUBCASE 1
+  LABEL   = LC1 Uniform Distributed Load in Global Z
+  LOAD    = 1
+  DISP    = ALL
+  FORCES  = ALL
+  STRES = ALL
+  GPFORCES = ALL
+SUBCASE 2
+  LABEL   = LC2 Point Load at Free End in Global Z
+  LOAD    = 2
+  DISP    = ALL
+  FORCES  = ALL
+  STRES = ALL
+  GPFORCES = ALL
+SUBCASE 3
+  LABEL   = LC3 End Moment About Global Z
+  LOAD    = 3
+  DISP    = ALL
+  FORCES  = ALL
+  STRES = ALL
+  GPFORCES = ALL
+BEGIN BULK
+PARAM,POST,-1
+PARAM,OGEOM,YES
+$
+$ GRID  ID   CP   X      Y    Z
+GRID,1,0,0.0,0.0,0.0,0
+GRID,2,0,144.0,0.0,0.0,0
+$
+$
+$ CBEAM: 30-deg roll, v = [0, -sin30, cos30] = [0, -0.5, 0.8660254]
+CBEAM, 1, 1, 1, 2, 0.0, -0.5, 0.8660254
+$
+$ PBEAM: PID, MID, A, I1, I2, I12, J, NSM
+$        K1=K2=0 for Bernoulli (set via K1, K2 on SO line or use default)
+$        Note: K1/K2 are on line 7-8 after all stations, or use PARAM
+$ H0.32766 W0.30988 tw0.015494 tf0.025146 r0.01524 I hot rolled
+$ A31.2000  Imajor933.0000 Iminor301.0000 J9.1300
+$ PBEAM: Bernoulli (K1=K2=0 on line 5)
+
+
+
+$      1       2       3        4      5       6       7       8       9 
+$23456781234567812345678123456781234567812345678123456781234567812345678
+PBEAM          1       1    31.2   933.0   301.0     0.0    9.13     0.0
+             0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0                                  
+             YES     1.0    31.2   933.0   301.0     0.0    9.13     0.0
+          .16383  .15494 -.16383  .15494 -.16383 -.15494  .16383 -.15494    
+             0.0     0.0                                                                                               
+$
+
+    
+$PBEAM,1,1,31.2,933.0,301.0,0.0,9.13
+$
+
+$
+$ Alternative: Use PARAM to set K1=K2=0 globally
+$ PARAM, K1, 0.0
+$ PARAM, K2, 0.0
+
+
+MAT1,1,29000.0,11153.8,0.3
+$
+SPC1,1,123456,1
+$
+$ LC1: w = 0.01 kip/in in global -Z, decomposed to local axes
+$ PLOAD1 applies load in element local coordinates
+$ For global Z load on rotated beam, need to use FORCE/MOMENT or decompose
+$ Alternative: use PLOAD1 with FZ (global Z) if supported, or use RBE2
+$ Using FORCE distributed equivalent: 0.01*144 = 1.44 kip total
+$ Better: use PLOAD1 with local component projection
+PLOAD1,1,1,FZ,FR,0.0,-0.01,1.0,-0.01
+
+$ LC2: P = 1 kip in global -Z at node 2
+FORCE,2,2,0,1.0,0.0,0.0,-1.0
+$ 
+$ LC3: M = 240 kip-in about global Y at node 2
+MOMENT,3,2,0,240.0,0.0,1.0,0.0
+$
+ENDDATA

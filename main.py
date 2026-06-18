@@ -1,4 +1,4 @@
-"""
+﻿"""
 MYSTRAN Viewer - Clean stable version
 Controls: Left drag=rotate, Right/Mid drag=pan, Scroll=zoom
           F=fit, R=reset, W=wireframe, S=solid/hidden, C=contour, O=ortho, Esc=quit
@@ -315,6 +315,12 @@ def _format_load_value(val):
 
 def _pload1_type_label(ltype: str) -> str:
     t = str(ltype or '').strip().upper()
+    if t in ('FXE', 'FYE', 'FZE'):
+        axis = {'FXE': 'X', 'FYE': 'Y', 'FZE': 'Z'}[t]
+        return f'Local {axis}'
+    if t in ('MXE', 'MYE', 'MZE'):
+        axis = {'MXE': 'X', 'MYE': 'Y', 'MZE': 'Z'}[t]
+        return f'Local M{axis}'
     if t.endswith('E'):
         base = t[:-1]
         return f"Local {base}"
@@ -345,6 +351,9 @@ def _beam_local_axes(elem, p0w, p1w):
     x2 = x2 / (np.linalg.norm(x2) + 1e-12)
     return ex, x2, x3, L
 
+
+def _beam_nastran_axes(ex, x2, x3):
+    return ex, x3, x2
 
 def _draw_moment_glyph_2d(dl, sc0, sc_axis, color, sign=1.0, size=10.0):
     if sc0 is None or sc_axis is None:
@@ -739,7 +748,7 @@ def _draw_result_hover_info(model, mvp, iw, ih, ortho, state):
                    'nfx', 'nfy', 'nfxy', 'nmx', 'nmy', 'nmxy', 'nqx', 'nqy'}
     elem_types = {'von_mises', 'oxx', 'oyy', 'txy', 'omax', 'omin',
                   'von_mises_top', 'von_mises_bottom',
-                  'sxc', 'sxd', 'sxe', 'sxf', 'smax', 'smin',
+                  'sxc', 'sxd', 'sxe', 'sxf', 'smax', 'smin', 'stress3d',
                   'fx', 'fy', 'fxy', 'mx', 'my', 'mxy', 'qx', 'qy'}
 
     if state.display_mode == 'wireframe':
@@ -924,13 +933,17 @@ def _draw_result_hover_info(model, mvp, iw, ih, ortho, state):
                 val = es.von_mises if rt == 'von_mises' else es.values.get(rt, es.von_mises)
                 lines[0] = f"Stress {rt.upper()} element {eid}"
                 lines.append(f"{rt.upper()}={_format_overlay_value(val)}")
-        elif rt in ('sxc', 'sxd', 'sxe', 'sxf', 'smax', 'smin'):
+        elif rt in ('sxc', 'sxd', 'sxe', 'sxf', 'smax', 'smin', 'stress3d'):
             diag = getattr(state, 'beam_diagram', None)
             bd = getattr(diag, 'beam_data', {}).get(eid) if diag is not None else None
             if bd is not None and getattr(bd, 'stations', None):
                 lines[0] = f"Beam stress {rt.upper()} element {eid}"
                 for st in bd.stations:
-                    lines.append(f"s={st.sd:.3f}  {rt.upper()}={_format_overlay_value(float(getattr(st, rt, 0.0)))}")
+                    if rt == 'stress3d':
+                        lines.append(
+                            f"s={st.sd:.3f}  C={_format_overlay_value(float(getattr(st, 'sxc', 0.0)))}  D={_format_overlay_value(float(getattr(st, 'sxd', 0.0)))}  E={_format_overlay_value(float(getattr(st, 'sxe', 0.0)))}  F={_format_overlay_value(float(getattr(st, 'sxf', 0.0)))}")
+                    else:
+                        lines.append(f"s={st.sd:.3f}  {rt.upper()}={_format_overlay_value(float(getattr(st, rt, 0.0)))}")
         elif rt in ('fx', 'fy', 'fxy', 'mx', 'my', 'mxy', 'qx', 'qy') and sc in getattr(r, 'forces', {}):
             ef = r.forces[sc].get(eid)
             if ef is not None and hasattr(ef, 'values'):
@@ -1609,7 +1622,10 @@ def _draw_notation(model, mvp, iw, ih, ortho, state):
             sc0 = _project(orig, mvp, iw, ih, ortho)
             if sc0 is None: continue
 
-            for vec, col, lbl in [(x1,0xFF4444FF,'1'),(x2,0xFF44CC44,'2'),(x3,0xFFFF8833,'3')]:
+            axis_glyphs = [(x1, 0xFF4444FF, '1'), (x2, 0xFF44CC44, '2'), (x3, 0xFFFF8833, '3')]
+            if dim == 'frame':
+                axis_glyphs = [(x1, 0xFF4444FF, 'x'), (x2, 0xFF44CC44, 'z'), (x3, 0xFFFF8833, 'y')]
+            for vec, col, lbl in axis_glyphs:
                 tip_w = orig + vec * ax_scale
                 sc1 = _project(tip_w, mvp, iw, ih, ortho)
                 if sc1 is None: continue
@@ -1705,7 +1721,8 @@ def _draw_notation(model, mvp, iw, ih, ortho, state):
             axes = _beam_local_axes(elem, p0w, p1w)
             if axes is None:
                 continue
-            ex, ey, ez, L = axes
+            ex, x2, x3, L = axes
+            lx, ly, lz = _beam_nastran_axes(ex, x2, x3)
             x1 = float(pl.get('x1', 0.0))
             x2 = float(pl.get('x2', x1))
             p1 = float(pl.get('p1', 0.0))
@@ -1734,21 +1751,30 @@ def _draw_notation(model, mvp, iw, ih, ortho, state):
             gz = np.array([0.0, 0.0, 1.0], dtype=np.float32)
             force_dirs = {
                 'FX': gx, 'FY': gy, 'FZ': gz,
-                'FXE': ex, 'FYE': ey, 'FZE': ez,
+                'FXE': lx, 'FYE': ly, 'FZE': lz,
             }
             moment_axes = {
                 'MX': gx, 'MY': gy, 'MZ': gz,
-                'MXE': ex, 'MYE': ey, 'MZE': ez,
+                'MXE': lx, 'MYE': ly, 'MZE': lz,
             }
 
             def _draw_force_arrow(base_t, mag, direction, scale_fac=1.0):
                 pt = p0w + ex * (base_t * L)
-                tip = pt + direction * arrow_len * np.sign(mag or 1.0) * scale_fac * load_scale_fac
+                tip = pt
+                tail = pt + direction * arrow_len * np.sign(mag or 1.0) * scale_fac * load_scale_fac
                 sc0 = _project(pt, mvp, iw, ih, ortho)
-                sc1 = _project(tip, mvp, iw, ih, ortho)
+                sc1 = _project(tail, mvp, iw, ih, ortho)
                 if sc0 and sc1:
-                    _draw_arrow_2d(dl, sc0, sc1, C_P, 1.5, 6.0)
+                    _draw_arrow_2d(dl, sc1, sc0, C_P, 1.5, 6.0)
                 return sc0, sc1
+
+            max_span_mag = max(abs(pa), abs(pb), 1e-12)
+
+            def _station_force_scale(mag):
+                mag = abs(float(mag))
+                if mag <= 1e-12:
+                    return 0.0
+                return max(0.18, mag / max_span_mag)
 
             def _draw_moment_marker(base_t, mag, axis_vec, scale_fac=1.0):
                 pt = p0w + ex * (base_t * L)
@@ -1787,11 +1813,15 @@ def _draw_notation(model, mvp, iw, ih, ortho, state):
                     pm = pa + (pb - pa) * u
                     if is_force:
                         pt = p0w + ex * (tt * L)
-                        top = pt + force_dirs[ltype] * arrow_len * np.sign(pm or 1.0) * load_scale_fac
+                        scale_here = _station_force_scale(pm)
+                        top = pt + force_dirs[ltype] * arrow_len * np.sign(pm or 1.0) * load_scale_fac * scale_here
                         scb = _project(pt, mvp, iw, ih, ortho)
                         sct = _project(top, mvp, iw, ih, ortho)
                         if scb and sct:
-                            _draw_arrow_2d(dl, scb, sct, C_P, 1.3, 5.0)
+                            if scale_here > 1e-12:
+                                _draw_arrow_2d(dl, scb, sct, C_P, 1.3, 5.0)
+                            else:
+                                dl.add_circle_filled(scb, 1.8, C_P)
                             if prev_top and prev_base:
                                 dl.add_line(prev_top, sct, C_P, 1.2)
                                 dl.add_line(prev_base, scb, C_P, 1.0)
@@ -1806,7 +1836,7 @@ def _draw_notation(model, mvp, iw, ih, ortho, state):
                 mid_t = 0.5 * (ta + tb)
                 mid_p = 0.5 * (pa + pb)
                 if is_force:
-                    _, sc_mid = _draw_force_arrow(mid_t, mid_p, force_dirs[ltype], 1.0)
+                    _, sc_mid = _draw_force_arrow(mid_t, mid_p, force_dirs[ltype], _station_force_scale(mid_p))
                     if sc_mid:
                         if abs(pa - pb) <= 1e-9:
                             txt = f'{type_label}={_format_load_value(pa)}'
@@ -3190,3 +3220,5 @@ if __name__=="__main__":
         print(f"\n[FATAL] {type(e).__name__}: {e}")
         traceback.print_exc()
         input("\nPress Enter to exit...")
+
+

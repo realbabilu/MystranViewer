@@ -35,6 +35,7 @@ class BeamSection:
     dims:    List[float] = field(default_factory=list)
     # polygon in (y, z) local coords — y=weak, z=strong
     profile: List[Tuple[float,float]] = field(default_factory=list)
+    loops:   List[List[Tuple[float,float]]] = field(default_factory=list)
 
     def render_half_extents(self):
         """Return (b/2, h/2) for fast box rendering."""
@@ -185,6 +186,94 @@ def _L_profile(b, h, tb, th):
     ]
     return [(y - y_cg, z - z_cg) for y, z in pts]
 
+def _center_profile(profile):
+    if not profile:
+        return []
+    area2 = 0.0
+    cy_num = 0.0
+    cz_num = 0.0
+    n = len(profile)
+    for i in range(n):
+        y0, z0 = profile[i]
+        y1, z1 = profile[(i + 1) % n]
+        cr = y0 * z1 - y1 * z0
+        area2 += cr
+        cy_num += (y0 + y1) * cr
+        cz_num += (z0 + z1) * cr
+    area = 0.5 * area2
+    if abs(area) <= 1e-12:
+        ay = sum(float(y) for y, _ in profile) / max(len(profile), 1)
+        az = sum(float(z) for _, z in profile) / max(len(profile), 1)
+        return [(float(y) - ay, float(z) - az) for y, z in profile]
+    cy = cy_num / (6.0 * area)
+    cz = cz_num / (6.0 * area)
+    return [(float(y) - cy, float(z) - cz) for y, z in profile]
+
+def _chan_profile(b, h, tw, tf):
+    hb = 0.5 * b
+    hh = 0.5 * h
+    pts = [
+        (-hb, -hh), (hb, -hh), (hb, -hh + tf),
+        (-hb + tw, -hh + tf), (-hb + tw, hh - tf),
+        (hb, hh - tf), (hb, hh), (-hb, hh),
+    ]
+    return _center_profile(pts)
+
+def _z_profile(b_top, b_bot, h, tw):
+    hh = 0.5 * h
+    pts = [
+        (-b_bot, -hh), (0.0, -hh), (0.0, 0.0),
+        (b_top, 0.0), (b_top, hh), (0.0, hh),
+        (0.0, 0.0), (-b_bot, 0.0),
+    ]
+    if tw > 1e-12:
+        pts = [
+            (-b_bot, -hh), (tw, -hh), (tw, -hh + tw),
+            (0.0, -hh + tw), (0.0, -tw), (b_top, -tw),
+            (b_top, hh), (-tw, hh), (-tw, hh - tw),
+            (0.0, hh - tw), (0.0, 0.0), (-b_bot, 0.0),
+        ]
+    return _center_profile(pts)
+
+def _cross_profile(b, tw, h, tf):
+    hb = 0.5 * b
+    hh = 0.5 * h
+    htw = 0.5 * tw
+    htf = 0.5 * tf
+    pts = [
+        (-htw, -hh), (htw, -hh), (htw, -htf), (hb, -htf),
+        (hb, htf), (htw, htf), (htw, hh), (-htw, hh),
+        (-htw, htf), (-hb, htf), (-hb, -htf), (-htw, -htf),
+    ]
+    return _center_profile(pts)
+
+def _t2_profile(b, h, tw, tf):
+    hb = 0.5 * b
+    hh = 0.5 * h
+    htw = 0.5 * tw
+    pts = [
+        (-hb, -hh), (hb, -hh), (hb, -hh + tf), (htw, -hh + tf),
+        (htw, hh), (-htw, hh), (-htw, -hh + tf), (-hb, -hh + tf),
+    ]
+    return _center_profile(pts)
+
+def _chan2_profile(b, h, side_t, bot_t):
+    hb = 0.5 * b
+    hh = 0.5 * h
+    pts = [
+        (-hb, -hh), (hb, -hh), (hb, hh), (hb - side_t, hh),
+        (hb - side_t, -hh + bot_t), (-hb + side_t, -hh + bot_t),
+        (-hb + side_t, hh), (-hb, hh),
+    ]
+    return _center_profile(pts)
+
+def _box1_loops(b, h, tt, tb, tr, tl):
+    hb = 0.5 * b
+    hh = 0.5 * h
+    outer = [(-hb, -hh), (hb, -hh), (hb, hh), (-hb, hh)]
+    inner = [(-hb + tl, -hh + tb), (hb - tr, -hh + tb), (hb - tr, hh - tt), (-hb + tl, hh - tt)]
+    return outer, inner
+
 
 # ---------------------------------------------------------------------------
 # Main extractor
@@ -216,9 +305,11 @@ def _section_dim_count(sec_type: str) -> int:
         return 1
     if t in ('TUBE', 'PIPE', 'BAR', 'RECT'):
         return 2
-    if t in ('BOX', 'T', 'T1', 'L', 'CHAN', 'C', 'H'):
+    if t in ('BOX', 'T', 'T1', 'L', 'CHAN', 'C', 'H', 'CHAN2', 'T2', 'Z', 'CROSS', 'I1'):
         return 4
-    if t in ('I', 'I1'):
+    if t == 'BOX1':
+        return 6
+    if t == 'I':
         return 6
     return 0
 
@@ -314,7 +405,7 @@ def extract_section(ptype: str, mid: int, params: dict) -> BeamSection:
         return BeamSection(
             shape='circle', b=dia, h=dia, area=A, cap_ends=True, dims=[dia],
             label=f'ROD A={A:.4g}',
-            profile=prof
+            profile=prof, loops=[prof]
         )
 
     # ---- PBAR ----
@@ -339,7 +430,7 @@ def extract_section(ptype: str, mid: int, params: dict) -> BeamSection:
         return BeamSection(
             shape='rect', b=b, h=h, area=A, cap_ends=True, dims=[b, h],
             label=f'BAR b={b:.4g} h={h:.4g}',
-            profile=prof
+            profile=prof, loops=[prof]
         )
 
     # ---- PBEAM ----
@@ -361,7 +452,7 @@ def extract_section(ptype: str, mid: int, params: dict) -> BeamSection:
         return BeamSection(
             shape='rect', b=b, h=h, area=A, cap_ends=True, dims=[b, h],
             label=f'BEAM b={b:.4g} h={h:.4g}',
-            profile=prof
+            profile=prof, loops=[prof]
         )
 
     # ---- PBARL / PBEAML ----
@@ -398,9 +489,10 @@ def extract_section(ptype: str, mid: int, params: dict) -> BeamSection:
         return _pbarl_section(sec_type, dims)
 
     # Fallback
+    prof = _rect_profile(0.1, 0.1)
     return BeamSection(shape='unknown', b=0.1, h=0.1, area=0.01, cap_ends=True, dims=[0.1, 0.1],
                        label=f'{ptype} (unknown)',
-                       profile=_rect_profile(0.1, 0.1))
+                       profile=prof, loops=[prof])
 
 
 def _pbarl_section(sec_type: str, dims: list) -> BeamSection:
@@ -417,78 +509,141 @@ def _pbarl_section(sec_type: str, dims: list) -> BeamSection:
     if t == 'ROD':
         r = d(0)
         A = math.pi * r**2
+        prof = _circle_profile(r)
         return BeamSection(shape='circle', b=2*r, h=2*r, area=A, cap_ends=True, dims=[2*r],
                            label=f'ROD r={r:.4g}',
-                           profile=_circle_profile(r))
+                           profile=prof, loops=[prof])
 
     # TUBE: DIM1=r_outer, DIM2=r_inner
     if t in ('TUBE', 'PIPE'):
         ro, ri = d(0), d(1)
         A = math.pi*(ro**2 - ri**2)
+        outer = _circle_profile(ro)
+        inner = list(reversed(_circle_profile(ri))) if ri > 1e-12 else []
         return BeamSection(shape='pipe', b=2*ro, h=2*ro, area=A, cap_ends=False, dims=[2*ro, 2*ri],
                            label=f'TUBE ro={ro:.4g} ri={ri:.4g}',
-                           profile=_circle_profile(ro))
+                           profile=outer, loops=[outer] + ([inner] if inner else []))
 
     # BAR / RECT: DIM1=b(width), DIM2=h(height)
     if t in ('BAR', 'RECT'):
         b, h = d(0), d(1) if len(dims) > 1 else d(0)
+        prof = _rect_profile(b, h)
         return BeamSection(shape='rect', b=b, h=h, area=b*h, cap_ends=True, dims=[b, h],
                            label=f'RECT {b:.4g}×{h:.4g}',
-                           profile=_rect_profile(b, h))
+                           profile=prof, loops=[prof])
 
     # BOX: DIM1=b, DIM2=h, DIM3=t1(side), DIM4=t2(top/bot)
     if t == 'BOX':
         b, h, t1, t2 = d(0), d(1), d(2), d(3)
         A = b*h - (b-2*t1)*(h-2*t2)
+        outer = _rect_profile(b, h)
+        inner = list(reversed(_rect_profile(max(b - 2*t1, 1e-9), max(h - 2*t2, 1e-9))))
         return BeamSection(shape='box', b=b, h=h, area=A, cap_ends=True, dims=[b, h, t1, t2],
                            label=f'BOX {b:.4g}×{h:.4g} t={t1:.4g}/{t2:.4g}',
-                           profile=_rect_profile(b, h))
+                           profile=outer, loops=[outer, inner])
 
     # I: DIM1=H, DIM2=bf_top, DIM3=bf_bot, DIM4=tf_top, DIM5=tf_bot, DIM6=tw
-    if t in ('I', 'I1'):
+    if t == 'I':
         H, bf1, bf2, tf1, tf2, tw = d(0), d(1), d(2), d(3), d(4), d(5)
         hw = max(H - tf1 - tf2, 0.0)
         A = bf1*tf1 + bf2*tf2 + hw*tw
         B = max(bf1, bf2)
+        prof = _I_profile(bf1, tf1, bf2, tf2, hw, tw)
         return BeamSection(shape='I', b=B, h=H, area=A, cap_ends=True, dims=[H, bf1, bf2, tf1, tf2, tw],
                            label=f'I {B:.4g}×{H:.4g}',
-                           profile=_I_profile(bf1, tf1, bf2, tf2, hw, tw))
+                           profile=prof, loops=[prof])
+
+    # I1: DIM1=flange width, DIM2=web thickness, DIM3=clear web height, DIM4=total height
+    if t == 'I1':
+        bf, tw, hw, H = d(0), d(1), d(2), d(3)
+        tf = max(0.5 * (H - hw), 0.0)
+        A = 2*bf*tf + hw*tw
+        prof = _I_profile(bf, tf, bf, tf, hw, tw)
+        return BeamSection(shape='I', b=bf, h=H, area=A, cap_ends=True, dims=[bf, tw, hw, H],
+                           label=f'I1 {bf:.4g}x{H:.4g}',
+                           profile=prof, loops=[prof])
 
     # H: DIM1=H, DIM2=bf, DIM3=tf, DIM4=tw
     if t == 'H':
         H, bf, tf, tw = d(0), d(1), d(2), d(3)
         hw = max(H - 2*tf, 0.0)
         A = 2*bf*tf + hw*tw
+        prof = _I_profile(bf, tf, bf, tf, hw, tw)
         return BeamSection(shape='I', b=bf, h=H, area=A, cap_ends=True, dims=[H, bf, bf, tf, tf, tw],
                            label=f'H {bf:.4g}×{H:.4g}',
-                           profile=_I_profile(bf, tf, bf, tf, hw, tw))
+                           profile=prof, loops=[prof])
 
     # T: DIM1=bf, DIM2=hw, DIM3=tw, DIM4=tf
     if t in ('T', 'T1'):
         bf, hw, tw, tf = d(0), d(1), d(2), d(3)
         A = bf*tf + hw*tw
         H = hw + tf
+        prof = _T_profile(bf, tf, hw, tw)
         return BeamSection(shape='T', b=bf, h=H, area=A, cap_ends=True, dims=[bf, H, tf, tw],
                            label=f'T {bf:.4g}×{H:.4g}',
-                           profile=_T_profile(bf, tf, hw, tw))
+                           profile=prof, loops=[prof])
 
     # L: DIM1=b(horiz leg), DIM2=h(vert leg), DIM3=tb, DIM4=th
     if t == 'L':
         b, h, tb, th = d(0), d(1), d(2), d(3)
         A = b*tb + (h-tb)*th
+        prof = _L_profile(b, h, tb, th)
         return BeamSection(shape='L', b=b, h=h, area=A, cap_ends=True, dims=[b, h, tb, th],
                            label=f'L {b:.4g}×{h:.4g}',
-                           profile=_L_profile(b, h, tb, th))
+                           profile=prof, loops=[prof])
 
     # CHAN: DIM1=b(flange), DIM2=h(height), DIM3=tw, DIM4=tf
     if t in ('CHAN', 'C'):
         b, h, tw, tf = d(0), d(1), d(2), d(3)
         A = 2*b*tf + (h-2*tf)*tw
-        return BeamSection(shape='rect', b=b, h=h, area=A, cap_ends=True, dims=[b, h, tw, tf],
+        prof = _chan_profile(b, h, tw, tf)
+        return BeamSection(shape='CHAN', b=b, h=h, area=A, cap_ends=True, dims=[b, h, tw, tf],
                            label=f'CHAN {b:.4g}×{h:.4g}',
-                           profile=_rect_profile(b, h))
+                           profile=prof, loops=[prof])
 
     # Fallback: use whatever dims we have as b×h
+    if t == 'CHAN2':
+        b, h, side_t, bot_t = d(0), d(1), d(2), d(3)
+        A = max(b * bot_t + 2.0 * side_t * max(h - bot_t, 0.0), 0.0)
+        prof = _chan2_profile(b, h, side_t, bot_t)
+        return BeamSection(shape='CHAN2', b=b, h=h, area=A, cap_ends=True, dims=[b, h, side_t, bot_t],
+                           label=f'CHAN2 {b:.4g}x{h:.4g}',
+                           profile=prof, loops=[prof])
+
+    if t == 'T2':
+        b, h, tw, tf = d(0), d(1), d(2), d(3)
+        A = b*tf + max(h - tf, 0.0)*tw
+        prof = _t2_profile(b, h, tw, tf)
+        return BeamSection(shape='T', b=b, h=h, area=A, cap_ends=True, dims=[b, h, tw, tf],
+                           label=f'T2 {b:.4g}x{h:.4g}',
+                           profile=prof, loops=[prof])
+
+    if t == 'Z':
+        b1, b2, h, tw = d(0), d(1), d(2), d(3)
+        A = max((b1 + b2) * tw + max(h - 2.0 * tw, 0.0) * tw, 0.0)
+        prof = _z_profile(b1, b2, h, tw)
+        return BeamSection(shape='Z', b=max(b1, b2), h=h, area=A, cap_ends=True, dims=[b1, b2, h, tw],
+                           label=f'Z {max(b1, b2):.4g}x{h:.4g}',
+                           profile=prof, loops=[prof])
+
+    if t == 'CROSS':
+        b, tw, h, tf = d(0), d(1), d(2), d(3)
+        A = max(h * tw + b * tf - tw * tf, 0.0)
+        prof = _cross_profile(b, tw, h, tf)
+        return BeamSection(shape='CROSS', b=b, h=h, area=A, cap_ends=True, dims=[b, tw, h, tf],
+                           label=f'CROSS {b:.4g}x{h:.4g}',
+                           profile=prof, loops=[prof])
+
+    if t == 'BOX1':
+        b, h, tt, tb, tr, tl = d(0), d(1), d(2), d(3), d(4), d(5)
+        outer, inner = _box1_loops(b, h, tt, tb, tr, tl)
+        inner_b = max(b - tl - tr, 0.0)
+        inner_h = max(h - tt - tb, 0.0)
+        A = max(b * h - inner_b * inner_h, 0.0)
+        return BeamSection(shape='BOX1', b=b, h=h, area=A, cap_ends=True, dims=[b, h, tt, tb, tr, tl],
+                           label=f'BOX1 {b:.4g}x{h:.4g}',
+                           profile=outer, loops=[outer, list(reversed(inner))])
+
     if len(dims) >= 2:
         b, h = dims[0], dims[1]
         A = b * h
@@ -497,7 +652,8 @@ def _pbarl_section(sec_type: str, dims: list) -> BeamSection:
         A = b * h
     else:
         b = h = 0.1; A = 0.01
+    prof = _rect_profile(b, h)
 
     return BeamSection(shape='rect', b=b, h=h, area=A, cap_ends=True, dims=[b, h],
                        label=f'{sec_type} {b:.4g}×{h:.4g}',
-                       profile=_rect_profile(b, h))
+                       profile=prof, loops=[prof])

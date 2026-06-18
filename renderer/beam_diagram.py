@@ -290,9 +290,9 @@ def _pload1_result_component(pl, ex: np.ndarray, ey: np.ndarray, ez: np.ndarray,
     if typ in ('FXE', 'FYE', 'FZE'):
         if result_key == 'af' and typ == 'FXE':
             return 1.0
-        if result_key in ('bm1', 'ts1') and typ == 'FZE':
+        if result_key in ('bm1', 'ts1') and typ == 'FYE':
             return 1.0
-        if result_key in ('bm2', 'ts2') and typ == 'FYE':
+        if result_key in ('bm2', 'ts2') and typ == 'FZE':
             return 1.0
         return None
 
@@ -484,12 +484,12 @@ def _transverse_pload_components(model, elem, load_sid: int, xs: np.ndarray,
     }
     type_local = {
         'FXE': np.array([1.0, 0.0, 0.0], dtype=np.float64),
-        'FYE': np.array([0.0, 1.0, 0.0], dtype=np.float64),
-        'FZE': np.array([0.0, 0.0, 1.0], dtype=np.float64),
+        'FYE': np.array([0.0, 0.0, 1.0], dtype=np.float64),
+        'FZE': np.array([0.0, 1.0, 0.0], dtype=np.float64),
     }
 
-    local_y = np.asarray(ey, dtype=np.float64)
-    local_z = np.asarray(ez, dtype=np.float64)
+    local_y = np.asarray(ez, dtype=np.float64)
+    local_z = np.asarray(ey, dtype=np.float64)
 
     for pl in getattr(model, 'pload1s', []):
         if int(pl.get('eid', 0)) != int(elem.id):
@@ -534,11 +534,11 @@ def _concentrated_pload_components(model, elem, load_sid: int, length: float,
     }
     type_local = {
         'FXE': np.array([1.0, 0.0, 0.0], dtype=np.float64),
-        'FYE': np.array([0.0, 1.0, 0.0], dtype=np.float64),
-        'FZE': np.array([0.0, 0.0, 1.0], dtype=np.float64),
+        'FYE': np.array([0.0, 0.0, 1.0], dtype=np.float64),
+        'FZE': np.array([0.0, 1.0, 0.0], dtype=np.float64),
     }
-    local_y = np.asarray(ey, dtype=np.float64)
-    local_z = np.asarray(ez, dtype=np.float64)
+    local_y = np.asarray(ez, dtype=np.float64)
+    local_z = np.asarray(ey, dtype=np.float64)
 
     for pl in getattr(model, 'pload1s', []):
         if int(pl.get('eid', 0)) != int(elem.id):

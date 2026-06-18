@@ -353,11 +353,18 @@ def draw_local_axes(
         sc0 = _project(centroid, mvp, win_w, win_h, ortho)
         if sc0 is None: continue
 
-        for vec, col, label in [
+        axis_glyphs = [
             (x1, col_x1, '1'),
             (x2, col_x2, '2'),
             (x3, col_x3, '3'),
-        ]:
+        ]
+        if elem.type in ('CBAR', 'CBEAM', 'CROD'):
+            axis_glyphs = [
+                (x1, col_x1, 'x'),
+                (x2, col_x2, 'z'),
+                (x3, col_x3, 'y'),
+            ]
+        for vec, col, label in axis_glyphs:
             tip_world = centroid + vec * arrow_len
             sc1 = _project(tip_world, mvp, win_w, win_h, ortho)
             if sc1 is None: continue
