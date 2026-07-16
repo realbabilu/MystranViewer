@@ -1,7 +1,7 @@
 # MystranViewer
 A simplified python Nastran-compatible Viewer
 
-# MYSTRAN Viewer — FEM Post Processor (for now, later maybe can be as Pre too)
+# MYSTRAN Viewer — FEM Post Processor 
 
 Python OpenGL FEM viewer for NASTRAN/MYSTRAN models.
 <img width="1919" height="1028" alt="image" src="https://github.com/user-attachments/assets/9fdbf94a-a4af-4fdc-aa4b-c3a2530be11c" />
