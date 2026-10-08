@@ -49,3 +49,13 @@ python main.py model.bdf model.neu                # + results (NEU/Femap)
 - renderer/camera.py         — Arcball camera
 - renderer/contour.py        — Colormaps
 
+
+## Examples
+
+Run the included model and F06 results:
+
+```
+python main.py examples/duel3a.dat examples/duel3a.f06
+```
+
+The `test/duel3a_macq8d.*` and `test/duel3a_mht6.*` fixtures contain CQUAD8 and CTRIA6 geometry with F06 and OP2 results.

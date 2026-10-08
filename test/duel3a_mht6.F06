@@ -1,0 +1,586 @@
+  1004141833
+
+ MYSTRAN Version 18.0.A   JUL 19 2026 MYSTRAN developed by Dr Bill Case
+*** Please report any problems to mystransolver@gmail.com ***                                                                                                                                                                                                   
+
+ >> MYSTRAN BEGIN  : 10/ 4/2026 at 14:18:33. 56 The input file is duel3a_mht6.dat                                                                                                                                                                                                                                                 
+
+
+ >> LINK  0 BEGIN
+
+
+SOL 101                                                                                                                                                                                                                                                         
+CEND                                                                                                                                                                                                                                                            
+TITLE = SAP2000 PROBLEM 2-001-THICK                                                                                                                                                                                                                             
+ECHO = BOTH                                                                                                                                                                                                                                                     
+SPC = 1                                                                                                                                                                                                                                                         
+GPSTRESS=ALL                                                                                                                                                                                                                                                    
+STRFIELD=ALL                                                                                                                                                                                                                                                    
+SUBCASE 1                                                                                                                                                                                                                                                       
+  LABEL = LC1_MEMBRANE                                                                                                                                                                                                                                          
+  LOAD = 1                                                                                                                                                                                                                                                      
+  DISPLACEMENT = ALL                                                                                                                                                                                                                                            
+  STRESS(CENTER) = ALL                                                                                                                                                                                                                                          
+SUBCASE 2                                                                                                                                                                                                                                                       
+  LABEL = LC2_BENDING                                                                                                                                                                                                                                           
+  LOAD = 2                                                                                                                                                                                                                                                      
+  DISPLACEMENT = ALL                                                                                                                                                                                                                                            
+  FORCES(CENTER)= ALL                                                                                                                                                                                                                                           
+OUTPUT(POST)                                                                                                                                                                                                                                                    
+SET 6 = 51,52,53,54,55,56,57,58,59,60                                                                                                                                                                                                                           
+SURFACE 600 SET 6 NORMAL Z                                                                                                                                                                                                                                      
+BEGIN BULK                                                                                                                                                                                                                                                      
+ECHO: loadb PARAM,BAILOUT,-1                                                                                                                                                                                                                                                
+ECHO: loadb DEBUG,249,1                                                                                                                                                                                                                                                     
+ECHO: loadb DEBUG,249,1                                                                                                                                                                                                                                                     
+ECHO: loadb MAT1,1,1.0E6,,0.25                                                                                                                                                                                                                                              
+ *INFORMATION: MAT1 ENTRY        1 HAD FIELD FOR G  BLANK. MYSTRAN CALCULATED G  =  4.000000E+05
+ECHO: loadb PSHELL,1,1,0.001,1,,1                                                                                                                                                                                                                                           
+ECHO: loadb GRID,301,,1.,2.,0.                                                                                                                                                                                                                                              
+ECHO: loadb GRID,302,,1.,2.12,0.                                                                                                                                                                                                                                            
+ECHO: loadb GRID,303,,1.04,2.02,0.                                                                                                                                                                                                                                          
+ECHO: loadb GRID,304,,1.08,2.08,0.                                                                                                                                                                                                                                          
+ECHO: loadb GRID,305,,1.18,2.03,0.                                                                                                                                                                                                                                          
+ECHO: loadb GRID,306,,1.16,2.08,0.                                                                                                                                                                                                                                          
+ECHO: loadb GRID,307,,1.24,2.,0.                                                                                                                                                                                                                                            
+ECHO: loadb GRID,308,,1.24,2.12,0.                                                                                                                                                                                                                                          
+ECHO: loadb GRID,309,,1.,2.06,0.                                                                                                                                                                                                                                            
+ECHO: loadb GRID,310,,1.12,2.12,0.                                                                                                                                                                                                                                          
+ECHO: loadb GRID,311,,1.24,2.06,0.                                                                                                                                                                                                                                          
+ECHO: loadb GRID,312,,1.12,2.,0.                                                                                                                                                                                                                                            
+ECHO: loadb GRID,313,,1.17,2.055,0.                                                                                                                                                                                                                                         
+ECHO: loadb GRID,314,,1.06,2.05,0.                                                                                                                                                                                                                                          
+ECHO: loadb GRID,315,,1.02,2.01,0.                                                                                                                                                                                                                                          
+ECHO: loadb GRID,316,,1.04,2.1,0.                                                                                                                                                                                                                                           
+ECHO: loadb GRID,317,,1.2,2.1,0.                                                                                                                                                                                                                                            
+ECHO: loadb GRID,318,,1.21,2.015,0.                                                                                                                                                                                                                                         
+ECHO: loadb GRID,319,,1.11,2.025,0.                                                                                                                                                                                                                                         
+ECHO: loadb GRID,320,,1.12,2.08,0.                                                                                                                                                                                                                                          
+ECHO: loadb GRID,321,,1.02,2.07,0.                                                                                                                                                                                                                                          
+ECHO: loadb GRID,322,,1.08,2.1,0.                                                                                                                                                                                                                                           
+ECHO: loadb GRID,323,,1.21,2.075,0.                                                                                                                                                                                                                                         
+ECHO: loadb GRID,324,,1.14,2.01,0.                                                                                                                                                                                                                                          
+ECHO: loadb GRID,325,,1.13,2.055,0.                                                                                                                                                                                                                                         
+ECHO: loadb PARAM,TRIA6TYP,MHT6                                                                                                                                                                                                                                             
+ECHO: loadb CTRIA6,51,1,303,302,304,321,316,314                                                                                                                                                                                                                             
+ECHO: loadb CTRIA6,52,1,303,305,307,319,318,324                                                                                                                                                                                                                             
+ECHO: loadb CTRIA6,53,1,304,306,305,320,313,325                                                                                                                                                                                                                             
+ECHO: loadb CTRIA6,54,1,306,302,308,322,310,317                                                                                                                                                                                                                             
+ECHO: loadb CTRIA6,55,1,305,306,308,313,317,323                                                                                                                                                                                                                             
+ECHO: loadb CTRIA6,56,1,301,302,303,309,321,315                                                                                                                                                                                                                             
+ECHO: loadb CTRIA6,57,1,304,302,306,316,322,320                                                                                                                                                                                                                             
+ECHO: loadb CTRIA6,58,1,305,308,307,323,311,318                                                                                                                                                                                                                             
+ECHO: loadb CTRIA6,59,1,301,303,307,315,324,312                                                                                                                                                                                                                             
+ECHO: loadb CTRIA6,60,1,303,304,305,314,325,319                                                                                                                                                                                                                             
+ECHO: loadb SPC1,1,12345,301                                                                                                                                                                                                                                                
+ECHO: loadb SPC1,1,12345,302                                                                                                                                                                                                                                                
+ECHO: loadb SPC1,1,12345,307                                                                                                                                                                                                                                                
+ECHO: loadb SPC1,1,12345,308                                                                                                                                                                                                                                                
+ECHO: loadb SPC1,1,12345,309                                                                                                                                                                                                                                                
+ECHO: loadb SPC1,1,12345,310                                                                                                                                                                                                                                                
+ECHO: loadb SPC1,1,12345,311                                                                                                                                                                                                                                                
+ECHO: loadb SPC1,1,12345,312                                                                                                                                                                                                                                                
+ECHO: loadb SPCD,1,302,1,6E-05                                                                                                                                                                                                                                              
+ECHO: loadb SPCD,1,302,2,0.00012                                                                                                                                                                                                                                            
+ECHO: loadb SPCD,1,307,1,0.00024                                                                                                                                                                                                                                            
+ECHO: loadb SPCD,1,307,2,0.00012                                                                                                                                                                                                                                            
+ECHO: loadb SPCD,1,308,1,0.0003                                                                                                                                                                                                                                             
+ECHO: loadb SPCD,1,308,2,0.00024                                                                                                                                                                                                                                            
+ECHO: loadb SPCD,1,309,1,3E-05                                                                                                                                                                                                                                              
+ECHO: loadb SPCD,1,309,2,6E-05                                                                                                                                                                                                                                              
+ECHO: loadb SPCD,1,310,1,18E-05                                                                                                                                                                                                                                             
+ECHO: loadb SPCD,1,310,2,18E-05                                                                                                                                                                                                                                             
+ECHO: loadb SPCD,1,311,1,27E-05                                                                                                                                                                                                                                             
+ECHO: loadb SPCD,1,311,2,18E-05                                                                                                                                                                                                                                             
+ECHO: loadb SPCD,1,312,1,12E-05                                                                                                                                                                                                                                             
+ECHO: loadb SPCD,1,312,2,6E-05                                                                                                                                                                                                                                              
+ECHO: loadb SPCD,2,302,3,7.2E-06                                                                                                                                                                                                                                            
+ECHO: loadb SPCD,2,302,4,0.00012                                                                                                                                                                                                                                            
+ECHO: loadb SPCD,2,302,5,-6E-05                                                                                                                                                                                                                                             
+ECHO: loadb SPCD,2,307,3,2.88E-05                                                                                                                                                                                                                                           
+ECHO: loadb SPCD,2,307,4,0.00012                                                                                                                                                                                                                                            
+ECHO: loadb SPCD,2,307,5,-0.00024                                                                                                                                                                                                                                           
+ECHO: loadb SPCD,2,308,3,5.04E-05                                                                                                                                                                                                                                           
+ECHO: loadb SPCD,2,308,4,0.00024                                                                                                                                                                                                                                            
+ECHO: loadb SPCD,2,308,5,-0.0003                                                                                                                                                                                                                                            
+ECHO: loadb SPCD,2,309,3,0.0000018                                                                                                                                                                                                                                          
+ECHO: loadb SPCD,2,309,4,0.00006                                                                                                                                                                                                                                            
+ECHO: loadb SPCD,2,309,5,-0.00003                                                                                                                                                                                                                                           
+ECHO: loadb SPCD,2,310,3,0.0000216                                                                                                                                                                                                                                          
+ECHO: loadb SPCD,2,310,4,0.00018                                                                                                                                                                                                                                            
+ECHO: loadb SPCD,2,310,5,-0.00018                                                                                                                                                                                                                                           
+ECHO: loadb SPCD,2,311,3,0.0000378                                                                                                                                                                                                                                          
+ECHO: loadb SPCD,2,311,4,0.00018                                                                                                                                                                                                                                            
+ECHO: loadb SPCD,2,311,5,-0.00027                                                                                                                                                                                                                                           
+ECHO: loadb SPCD,2,312,3,0.0000072                                                                                                                                                                                                                                          
+ECHO: loadb SPCD,2,312,4,0.00006                                                                                                                                                                                                                                            
+ECHO: loadb SPCD,2,312,5,-0.00012                                                                                                                                                                                                                                           
+ECHO: loadb ENDDATA                                                                                                                                                                                                                                                         
+
+
+
+
+
+ >> LINK  0 END
+
+
+ >> LINK  1 BEGIN
+
+               DEALLOCATED  2.07E-01 MB MEMORY FROM ARRAY STF3
+
+               DEALLOCATED  6.00E-04 MB MEMORY FROM ARRAY STFKEY
+               DEALLOCATED  2.07E-01 MB MEMORY FROM ARRAY STF3
+
+ >> LINK  1 END
+
+
+ >> LINK  2 BEGIN
+
+
+
+ *INFORMATION: AUTOSPC Summary, Overall: after identification of all AUTOSPC's                                                               
+
+                                     AUTOSPC_RAT = 1.000000E-08
+
+                       Number of DOF's identified for AUTOSPC in component  1         =            0
+                       Number of DOF's identified for AUTOSPC in component  2         =            0
+                       Number of DOF's identified for AUTOSPC in component  3         =            0
+                       Number of DOF's identified for AUTOSPC in component  4         =            0
+                       Number of DOF's identified for AUTOSPC in component  5         =            0
+                       Number of DOF's identified for AUTOSPC in component  6         =            0
+                                                                                        ------------
+                       Total number of DOF's identified overall                       =            0
+
+
+ >> LINK  2 END
+
+
+ >> LINK  3 BEGIN
+
+ *INFORMATION: MUMPS symmetry audit for matrix KLL chose mode Y in subr LINK3                          
+
+ *INFORMATION: FOR INTERNAL SUBCASE NUMBER        1 EPSILON ERROR ESTIMATE            = -2.103268E-16 Based on U'*(K*U - P)/(U'*P)
+
+ *INFORMATION: FOR INTERNAL SUBCASE NUMBER        2 EPSILON ERROR ESTIMATE            =  1.760660E-16 Based on U'*(K*U - P)/(U'*P)
+
+
+ >> LINK  3 END
+
+
+ >> LINK  5 BEGIN
+
+
+ >> LINK  5 END
+
+
+ >> LINK  9 BEGIN
+
+
+
+ OUTPUT FOR SUBCASE        1
+ SAP2000 PROBLEM 2-001-THICK                                                                                                                                                                                                                                     
+ LC1_MEMBRANE                                                                                                                                                                                                                                                    
+
+                                                       D I S P L A C E M E N T S
+                                              (in global coordinate system at each grid)
+           GRID     COORD      T1            T2            T3            R1            R2            R3
+                     SYS
+            301        0  0.0           0.0           0.0           0.0           0.0          -9.329345E-19
+            302        0  6.000000E-05  1.200000E-04  0.0           0.0           0.0           6.451641E-18
+            303        0  5.000000E-05  4.000000E-05  0.0           0.0           0.0          -1.168399E-18
+            304        0  1.200000E-04  1.200000E-04  0.0           0.0           0.0          -1.470043E-17
+            305        0  1.950000E-04  1.200000E-04  0.0           0.0           0.0          -1.579170E-17
+            306        0  2.000000E-04  1.600000E-04  0.0           0.0           0.0          -1.260092E-17
+            307        0  2.400000E-04  1.200000E-04  0.0           0.0           0.0          -1.207903E-17
+            308        0  3.000000E-04  2.400000E-04  0.0           0.0           0.0          -1.064622E-17
+            309        0  3.000000E-05  6.000000E-05  0.0           0.0           0.0           1.222248E-17
+            310        0  1.800000E-04  1.800000E-04  0.0           0.0           0.0           2.337933E-18
+            311        0  2.700000E-04  1.800000E-04  0.0           0.0           0.0           1.866137E-17
+            312        0  1.200000E-04  6.000000E-05  0.0           0.0           0.0           7.260047E-18
+            313        0  1.975000E-04  1.400000E-04  0.0           0.0           0.0           5.852204E-18
+            314        0  8.500000E-05  8.000000E-05  0.0           0.0           0.0          -8.221867E-18
+            315        0  2.500000E-05  2.000000E-05  0.0           0.0           0.0          -1.124709E-17
+            316        0  9.000000E-05  1.200000E-04  0.0           0.0           0.0           2.822435E-18
+            317        0  2.500000E-04  2.000000E-04  0.0           0.0           0.0           1.875230E-18
+            318        0  2.175000E-04  1.200000E-04  0.0           0.0           0.0          -1.726713E-18
+            319        0  1.225000E-04  8.000000E-05  0.0           0.0           0.0           5.820256E-18
+            320        0  1.600000E-04  1.400000E-04  0.0           0.0           0.0           2.370032E-18
+            321        0  5.500000E-05  8.000000E-05  0.0           0.0           0.0           1.141662E-17
+            322        0  1.300000E-04  1.400000E-04  0.0           0.0           0.0           1.725784E-17
+            323        0  2.475000E-04  1.800000E-04  0.0           0.0           0.0          -5.106948E-18
+            324        0  1.450000E-04  8.000000E-05  0.0           0.0           0.0          -7.579836E-18
+            325        0  1.575000E-04  1.200000E-04  0.0           0.0           0.0          -8.095998E-18
+                         ------------- ------------- ------------- ------------- ------------- -------------
+                MAX* :    3.000000E-04  2.400000E-04  0.0           0.0           0.0           1.866137E-17
+                MIN* :    0.0           0.0           0.0           0.0           0.0          -1.579170E-17
+
+                ABS* :    3.000000E-04  2.400000E-04  0.0           0.0           0.0           1.866137E-17
+                *for output set
+
+
+ OUTPUT FOR SUBCASE        1
+ SAP2000 PROBLEM 2-001-THICK                                                                                                                                                                                                                                     
+ LC1_MEMBRANE                                                                                                                                                                                                                                                    
+
+                                    E L E M E N T   S T R E S S E S   I N   L O C A L   E L E M E N T   C O O R D I N A T E   S Y S T E M
+                                                                 F O R   E L E M E N T   T Y P E   T R I A 6  
+  Element    Location      Stress       Stresses In Reported Coord System      Principal Stresses (Zero Shear)               Transverse   Transverse
+     ID                  Distance      Normal-X     Normal-Y      Shear-XY     Angle     Major        Minor      von Mises     Shear-XZ     Shear-YZ
+                                                                                                                             (max through thickness)
+
+       51    CENTER     -5.00000E-04  1.05747E+03  1.60920E+03 -2.89655E+02 -6.680E+01  1.73333E+03  9.33333E+02  1.50259E+03  0.00000E+00  0.00000E+00        
+                         5.00000E-04  1.05747E+03  1.60920E+03 -2.89655E+02 -6.680E+01  1.73333E+03  9.33333E+02  1.50259E+03  0.00000E+00  0.00000E+00        
+
+       52    CENTER     -5.00000E-04  1.39019E+03  1.27648E+03  3.95939E+02  4.091E+01  1.73333E+03  9.33333E+02  1.50259E+03  0.00000E+00  0.00000E+00        
+                         5.00000E-04  1.39019E+03  1.27648E+03  3.95939E+02  4.091E+01  1.73333E+03  9.33333E+02  1.50259E+03  0.00000E+00  0.00000E+00        
+
+       53    CENTER     -5.00000E-04  1.33333E+03  1.33333E+03  4.00000E+02  4.500E+01  1.73333E+03  9.33333E+02  1.50259E+03  0.00000E+00  0.00000E+00        
+                         5.00000E-04  1.33333E+03  1.33333E+03  4.00000E+02  4.500E+01  1.73333E+03  9.33333E+02  1.50259E+03  0.00000E+00  0.00000E+00        
+
+       54    CENTER     -5.00000E-04  1.14510E+03  1.52157E+03  3.52941E+02  5.904E+01  1.73333E+03  9.33333E+02  1.50259E+03  0.00000E+00  0.00000E+00        
+                         5.00000E-04  1.14510E+03  1.52157E+03  3.52941E+02  5.904E+01  1.73333E+03  9.33333E+02  1.50259E+03  0.00000E+00  0.00000E+00        
+
+       55    CENTER     -5.00000E-04  1.05747E+03  1.60920E+03 -2.89655E+02 -6.680E+01  1.73333E+03  9.33333E+02  1.50259E+03  0.00000E+00  0.00000E+00        
+                         5.00000E-04  1.05747E+03  1.60920E+03 -2.89655E+02 -6.680E+01  1.73333E+03  9.33333E+02  1.50259E+03  0.00000E+00  0.00000E+00        
+
+       56    CENTER     -5.00000E-04  1.33333E+03  1.33333E+03 -4.00000E+02 -4.500E+01  1.73333E+03  9.33333E+02  1.50259E+03  0.00000E+00  0.00000E+00        
+                         5.00000E-04  1.33333E+03  1.33333E+03 -4.00000E+02 -4.500E+01  1.73333E+03  9.33333E+02  1.50259E+03  0.00000E+00  0.00000E+00        
+
+       57    CENTER     -5.00000E-04  1.01333E+03  1.65333E+03  2.40000E+02  7.157E+01  1.73333E+03  9.33333E+02  1.50259E+03  0.00000E+00  0.00000E+00        
+                         5.00000E-04  1.01333E+03  1.65333E+03  2.40000E+02  7.157E+01  1.73333E+03  9.33333E+02  1.50259E+03  0.00000E+00  0.00000E+00        
+
+       58    CENTER     -5.00000E-04  1.70256E+03  9.64103E+02 -1.53846E+02 -1.131E+01  1.73333E+03  9.33333E+02  1.50259E+03  0.00000E+00  0.00000E+00        
+                         5.00000E-04  1.70256E+03  9.64103E+02 -1.53846E+02 -1.131E+01  1.73333E+03  9.33333E+02  1.50259E+03  0.00000E+00  0.00000E+00        
+
+       59    CENTER     -5.00000E-04  1.65333E+03  1.01333E+03  2.40000E+02  1.843E+01  1.73333E+03  9.33333E+02  1.50259E+03  0.00000E+00  0.00000E+00        
+                         5.00000E-04  1.65333E+03  1.01333E+03  2.40000E+02  1.843E+01  1.73333E+03  9.33333E+02  1.50259E+03  0.00000E+00  0.00000E+00        
+
+       60    CENTER     -5.00000E-04  1.70256E+03  9.64103E+02 -1.53846E+02 -1.131E+01  1.73333E+03  9.33333E+02  1.50259E+03  0.00000E+00  0.00000E+00        
+                         5.00000E-04  1.70256E+03  9.64103E+02 -1.53846E+02 -1.131E+01  1.73333E+03  9.33333E+02  1.50259E+03  0.00000E+00  0.00000E+00        
+                                     ------------ ------------ ------------          ------------ ------------ ------------ ------------ ------------
+ MAX* :                               1.39019E+03  1.60920E+03  3.95939E+02           1.73333E+03  9.33333E+02  1.50259E+03  0.00000E+00  0.00000E+00
+ MIN* :                               1.05747E+03  1.27648E+03 -2.89655E+02           1.73333E+03  9.33333E+02  1.50259E+03  0.00000E+00  0.00000E+00
+
+ ABS* :                               1.39019E+03  1.60920E+03  3.95939E+02           1.73333E+03  9.33333E+02  1.50259E+03  0.00000E+00  0.00000E+00
+ *for output set
+
+ SAP2000 PROBLEM 2-001-THICK                                                                                                     
+
+0                                                                                                          SUBCASE        1
+                                  S T R E S S E S   A T   G R I D   P O I N T S   - -     S U R F A C E     600
+0                       SURFACE X-AXIS X  NORMAL(Z-AXIS)  Z         REFERENCE COORDINATE SYSTEM FOR SURFACE DEFINITION CID        0
+     GRID      ELEMENT            STRESSES IN SURFACE SYSTEM           PRINCIPAL STRESSES            MAX
+     ID          ID    FIBER   NORMAL-X   NORMAL-Y   SHEAR-XY     ANGLE      MAJOR      MINOR      SHEAR     VON MISES
+      303        0     Z1       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       Z2       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       MID      1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+      302        0     Z1       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       Z2       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       MID      1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+      304        0     Z1       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       Z2       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       MID      1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+      321        0     Z1       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       Z2       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       MID      1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+      316        0     Z1       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       Z2       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       MID      1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+      314        0     Z1       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       Z2       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       MID      1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+      305        0     Z1       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       Z2       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       MID      1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+      307        0     Z1       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       Z2       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       MID      1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+      319        0     Z1       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       Z2       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       MID      1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+      318        0     Z1       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       Z2       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       MID      1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+      324        0     Z1       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       Z2       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       MID      1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+      306        0     Z1       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       Z2       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       MID      1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+      320        0     Z1       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       Z2       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       MID      1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+      313        0     Z1       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       Z2       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       MID      1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+      325        0     Z1       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       Z2       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       MID      1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+      308        0     Z1       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       Z2       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       MID      1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+      322        0     Z1       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       Z2       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       MID      1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+      310        0     Z1       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       Z2       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       MID      1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+      317        0     Z1       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       Z2       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       MID      1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+      323        0     Z1       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       Z2       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       MID      1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+      301        0     Z1       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       Z2       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       MID      1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+      309        0     Z1       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       Z2       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       MID      1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+      315        0     Z1       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       Z2       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       MID      1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+      311        0     Z1       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       Z2       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       MID      1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+      312        0     Z1       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       Z2       1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+                       MID      1.333333E+03  1.333333E+03  4.000000E+02  45.0000   1.733333E+03  9.333333E+02  4.000000E+02  1.502590E+03
+
+
+ OUTPUT FOR SUBCASE        2
+ SAP2000 PROBLEM 2-001-THICK                                                                                                                                                                                                                                     
+ LC2_BENDING                                                                                                                                                                                                                                                     
+
+                                                       D I S P L A C E M E N T S
+                                              (in global coordinate system at each grid)
+           GRID     COORD      T1            T2            T3            R1            R2            R3
+                     SYS
+            301        0  0.0           0.0           0.0           0.0           0.0           0.0         
+            302        0  0.0           0.0           7.200000E-06  1.200000E-04 -6.000000E-05  0.0         
+            303        0  0.0           0.0           1.400000E-06  4.000000E-05 -5.000000E-05  0.0         
+            304        0  0.0           0.0           9.600000E-06  1.200000E-04 -1.200000E-04  0.0         
+            305        0  0.0           0.0           1.935000E-05  1.200000E-04 -1.950000E-04  0.0         
+            306        0  0.0           0.0           2.240000E-05  1.600000E-04 -2.000000E-04  0.0         
+            307        0  0.0           0.0           2.880000E-05  1.200000E-04 -2.400000E-04  0.0         
+            308        0  0.0           0.0           5.040000E-05  2.400000E-04 -3.000000E-04  0.0         
+            309        0  0.0           0.0           1.800000E-06  6.000000E-05 -3.000000E-05  0.0         
+            310        0  0.0           0.0           2.160000E-05  1.800000E-04 -1.800000E-04  0.0         
+            311        0  0.0           0.0           3.780000E-05  1.800000E-04 -2.700000E-04  0.0         
+            312        0  0.0           0.0           7.200000E-06  6.000000E-05 -1.200000E-04  0.0         
+            313        0  0.0           0.0           2.063750E-05  1.400000E-04 -1.975000E-04  0.0         
+            314        0  0.0           0.0           4.550000E-06  8.000000E-05 -8.500000E-05  0.0         
+            315        0  0.0           0.0           3.500000E-07  2.000000E-05 -2.500000E-05  0.0         
+            316        0  0.0           0.0           7.800000E-06  1.200000E-04 -9.000000E-05  0.0         
+            317        0  0.0           0.0           3.500000E-05  2.000000E-04 -2.500000E-04  0.0         
+            318        0  0.0           0.0           2.373750E-05  1.200000E-04 -2.175000E-04  0.0         
+            319        0  0.0           0.0           7.737500E-06  8.000000E-05 -1.225000E-04  0.0         
+            320        0  0.0           0.0           1.520000E-05  1.400000E-04 -1.600000E-04  0.0         
+            321        0  0.0           0.0           3.350000E-06  8.000000E-05 -5.500000E-05  0.0         
+            322        0  0.0           0.0           1.220000E-05  1.400000E-04 -1.300000E-04  0.0         
+            323        0  0.0           0.0           3.273750E-05  1.800000E-04 -2.475000E-04  0.0         
+            324        0  0.0           0.0           1.055000E-05  8.000000E-05 -1.450000E-04  0.0         
+            325        0  0.0           0.0           1.353750E-05  1.200000E-04 -1.575000E-04  0.0         
+                         ------------- ------------- ------------- ------------- ------------- -------------
+                MAX* :    0.0           0.0           5.040000E-05  2.400000E-04  0.0           0.0         
+                MIN* :    0.0           0.0           0.0           0.0          -3.000000E-04  0.0         
+
+                ABS* :    0.0           0.0           5.040000E-05  2.400000E-04  3.000000E-04  0.0         
+                *for output set
+
+
+ OUTPUT FOR SUBCASE        2
+ SAP2000 PROBLEM 2-001-THICK                                                                                                                                                                                                                                     
+ LC2_BENDING                                                                                                                                                                                                                                                     
+
+                                                       E L E M E N T   E N G I N E E R I N G   F O R C E S
+                                                           F O R   E L E M E N T   T Y P E   T R I A 6  
+  Element Location               N o r m a l   F o r c e s                       M o m e n t s                   T r a n s v e r s e
+     ID                                                                                                        S h e a r   F o r c e s
+                              Nxx           Nyy           Nxy           Mxx           Myy           Mxy            Qx           Qy
+       51                 0.0           0.0           0.0           8.812261E-08  1.340996E-07 -2.413793E-08 -7.109430E-16 -8.063754E-16
+       52                 0.0           0.0           0.0           1.158488E-07  1.063734E-07  3.299492E-08  1.400428E-16  3.119058E-15
+       53                 0.0           0.0           0.0           1.111111E-07  1.111111E-07  3.333333E-08 -2.800856E-16  3.103970E-16
+       54                 0.0           0.0           0.0           9.542484E-08  1.267974E-07  2.941176E-08 -3.523657E-16  2.014809E-15
+       55                 0.0           0.0           0.0           8.812261E-08  1.340996E-07 -2.413793E-08  5.285486E-16  1.495295E-15
+       56                 0.0           0.0           0.0           1.111111E-07  1.111111E-07 -3.333333E-08  2.108920E-16 -1.151400E-15
+       57                 0.0           0.0           0.0           8.444444E-08  1.377778E-07  2.000000E-08 -4.969260E-17  1.138412E-15
+       58                 0.0           0.0           0.0           1.418803E-07  8.034188E-08 -1.282051E-08 -3.930233E-16  8.267042E-16
+       59                 0.0           0.0           0.0           1.377778E-07  8.444444E-08  2.000000E-08  9.554532E-16  1.122601E-15
+       60                 0.0           0.0           0.0           1.418803E-07  8.034188E-08 -1.282051E-08  9.328656E-16  3.184844E-16
+                          ------------- ------------- ------------- ------------- ------------- ------------- ------------- -------------
+                MAX* :    0.000000E+00  0.000000E+00  0.000000E+00  1.418803E-07  1.377778E-07  3.333333E-08  9.554532E-16  3.119058E-15
+                MIN* :    0.000000E+00  0.000000E+00  0.000000E+00  8.444444E-08  8.034188E-08 -3.333333E-08 -7.109430E-16 -1.151400E-15
+
+                ABS* :    0.000000E+00  0.000000E+00  0.000000E+00  1.418803E-07  1.377778E-07  3.333333E-08  9.554532E-16  3.119058E-15
+                *for output set
+
+
+                                 F O R C E S   A T   G R I D   P O I N T S   - -   S U R F A C E     600
+0                      SURFACE X-AXIS X  NORMAL(Z-AXIS)  Z        REFERENCE COORDINATE SYSTEM FOR SURFACE DEFINITION CID        0
+
+        GRID       ELEM             NXX           NYY           NXY           MXX           MYY           MXY            QX            QY
+      303        51       0.0           0.0           0.0           1.111111E-07  1.111111E-07  3.333333E-08 -4.876127E-15 -4.974403E-15
+      302        51       0.0           0.0           0.0           1.111111E-07  1.111111E-07  3.333333E-08 -2.157380E-15  4.044290E-15
+      304        51       0.0           0.0           0.0           1.111111E-07  1.111111E-07  3.333333E-08  2.082444E-15  2.948451E-15
+      321        51       0.0           0.0           0.0           1.111111E-07  1.111111E-07  3.333333E-08  4.799533E-15  8.248426E-16
+      316        51       0.0           0.0           0.0           1.111111E-07  1.111111E-07  3.333333E-08 -3.610652E-15 -8.055031E-16
+      314        51       0.0           0.0           0.0           1.111111E-07  1.111111E-07  3.333333E-08  9.820717E-17 -2.427008E-16
+      305        52       0.0           0.0           0.0           1.111111E-07  1.111111E-07  3.333333E-08  1.903795E-15  8.903335E-16
+      307        52       0.0           0.0           0.0           1.111111E-07  1.111111E-07  3.333333E-08  1.528284E-15 -4.566675E-15
+      319        52       0.0           0.0           0.0           1.111111E-07  1.111111E-07  3.333333E-08  2.241934E-15  4.641024E-15
+      318        52       0.0           0.0           0.0           1.111111E-07  1.111111E-07  3.333333E-08 -2.227087E-15 -2.576344E-15
+      324        52       0.0           0.0           0.0           1.111111E-07  1.111111E-07  3.333333E-08  1.253735E-15  6.105972E-15
+      306        53       0.0           0.0           0.0           1.111111E-07  1.111111E-07  3.333333E-08 -3.467708E-16  4.548836E-15
+      320        53       0.0           0.0           0.0           1.111111E-07  1.111111E-07  3.333333E-08  1.900696E-15  4.955185E-15
+      313        53       0.0           0.0           0.0           1.111111E-07  1.111111E-07  3.333333E-08 -6.018150E-16 -1.703656E-15
+      325        53       0.0           0.0           0.0           1.111111E-07  1.111111E-07  3.333333E-08 -2.344355E-15 -3.031752E-15
+      308        54       0.0           0.0           0.0           1.111111E-07  1.111111E-07  3.333333E-08 -4.502140E-16 -1.208651E-15
+      322        54       0.0           0.0           0.0           1.111111E-07  1.111111E-07  3.333333E-08 -1.045949E-17 -5.571754E-15
+      310        54       0.0           0.0           0.0           1.111111E-07  1.111111E-07  3.333333E-08 -1.928356E-16  1.538302E-15
+      317        54       0.0           0.0           0.0           1.111111E-07  1.111111E-07  3.333333E-08  3.262915E-16  2.121252E-15
+      323        55       0.0           0.0           0.0           1.111111E-07  1.111111E-07  3.333333E-08 -9.829549E-16  6.204153E-16
+      301        56       0.0           0.0           0.0           1.111111E-07  1.111111E-07  3.333333E-08  6.432847E-16  1.283220E-15
+      309        56       0.0           0.0           0.0           1.111111E-07  1.111111E-07  3.333333E-08 -2.622414E-15 -1.807004E-17
+      315        56       0.0           0.0           0.0           1.111111E-07  1.111111E-07  3.333333E-08 -1.396429E-15 -1.487706E-15
+      311        58       0.0           0.0           0.0           1.111111E-07  1.111111E-07  3.333333E-08  1.754104E-15 -4.961609E-16
+      312        59       0.0           0.0           0.0           1.111111E-07  1.111111E-07  3.333333E-08  1.010146E-17 -2.949626E-15
+
+
+
+ OUTPUT FOR SUBCASE        2
+ SAP2000 PROBLEM 2-001-THICK                                                                                                                                                                                                                                     
+ LC2_BENDING                                                                                                                                                                                                                                                     
+
+                                    E L E M E N T   S T R E S S E S   I N   L O C A L   E L E M E N T   C O O R D I N A T E   S Y S T E M
+                                                                 F O R   E L E M E N T   T Y P E   T R I A 6  
+  Element    Location      Stress       Stresses In Reported Coord System      Principal Stresses (Zero Shear)               Transverse   Transverse
+     ID                  Distance      Normal-X     Normal-Y      Shear-XY     Angle     Major        Minor      von Mises     Shear-XZ     Shear-YZ
+                                                                                                                             (max through thickness)
+
+       51    CENTER     -5.00000E-04  5.28736E-01  8.04598E-01 -1.44828E-01 -6.680E+01  8.66667E-01  4.66667E-01  7.51295E-01 -8.53132E-13 -9.67650E-13        
+                         5.00000E-04 -5.28736E-01 -8.04598E-01  1.44828E-01  2.320E+01 -4.66667E-01 -8.66667E-01  7.51295E-01 -8.53132E-13 -9.67650E-13        
+
+       52    CENTER     -5.00000E-04  6.95093E-01  6.38240E-01  1.97970E-01  4.091E+01  8.66667E-01  4.66667E-01  7.51295E-01  1.68051E-13  3.74287E-12        
+                         5.00000E-04 -6.95093E-01 -6.38240E-01 -1.97970E-01 -4.909E+01 -4.66667E-01 -8.66667E-01  7.51295E-01  1.68051E-13  3.74287E-12        
+
+       53    CENTER     -5.00000E-04  6.66667E-01  6.66667E-01  2.00000E-01  4.500E+01  8.66667E-01  4.66667E-01  7.51295E-01 -3.36103E-13  3.72476E-13        
+                         5.00000E-04 -6.66667E-01 -6.66667E-01 -2.00000E-01 -4.500E+01 -4.66667E-01 -8.66667E-01  7.51295E-01 -3.36103E-13  3.72476E-13        
+
+       54    CENTER     -5.00000E-04  5.72549E-01  7.60784E-01  1.76471E-01  5.904E+01  8.66667E-01  4.66667E-01  7.51295E-01 -4.22839E-13  2.41777E-12        
+                         5.00000E-04 -5.72549E-01 -7.60784E-01 -1.76471E-01 -3.096E+01 -4.66667E-01 -8.66667E-01  7.51295E-01 -4.22839E-13  2.41777E-12        
+
+       55    CENTER     -5.00000E-04  5.28736E-01  8.04598E-01 -1.44828E-01 -6.680E+01  8.66667E-01  4.66667E-01  7.51295E-01  6.34258E-13  1.79435E-12        
+                         5.00000E-04 -5.28736E-01 -8.04598E-01  1.44828E-01  2.320E+01 -4.66667E-01 -8.66667E-01  7.51295E-01  6.34258E-13  1.79435E-12        
+
+       56    CENTER     -5.00000E-04  6.66667E-01  6.66667E-01 -2.00000E-01 -4.500E+01  8.66667E-01  4.66667E-01  7.51295E-01  2.53070E-13 -1.38168E-12        
+                         5.00000E-04 -6.66667E-01 -6.66667E-01  2.00000E-01  4.500E+01 -4.66667E-01 -8.66667E-01  7.51295E-01  2.53070E-13 -1.38168E-12        
+
+       57    CENTER     -5.00000E-04  5.06667E-01  8.26667E-01  1.20000E-01  7.157E+01  8.66667E-01  4.66667E-01  7.51295E-01 -5.96311E-14  1.36609E-12        
+                         5.00000E-04 -5.06667E-01 -8.26667E-01 -1.20000E-01 -1.843E+01 -4.66667E-01 -8.66667E-01  7.51295E-01 -5.96311E-14  1.36609E-12        
+
+       58    CENTER     -5.00000E-04  8.51282E-01  4.82051E-01 -7.69231E-02 -1.131E+01  8.66667E-01  4.66667E-01  7.51295E-01 -4.71628E-13  9.92045E-13        
+                         5.00000E-04 -8.51282E-01 -4.82051E-01  7.69231E-02  7.869E+01 -4.66667E-01 -8.66667E-01  7.51295E-01 -4.71628E-13  9.92045E-13        
+
+       59    CENTER     -5.00000E-04  8.26667E-01  5.06667E-01  1.20000E-01  1.843E+01  8.66667E-01  4.66667E-01  7.51295E-01  1.14654E-12  1.34712E-12        
+                         5.00000E-04 -8.26667E-01 -5.06667E-01 -1.20000E-01 -7.157E+01 -4.66667E-01 -8.66667E-01  7.51295E-01  1.14654E-12  1.34712E-12        
+
+       60    CENTER     -5.00000E-04  8.51282E-01  4.82051E-01 -7.69231E-02 -1.131E+01  8.66667E-01  4.66667E-01  7.51295E-01  1.11944E-12  3.82181E-13        
+                         5.00000E-04 -8.51282E-01 -4.82051E-01  7.69231E-02  7.869E+01 -4.66667E-01 -8.66667E-01  7.51295E-01  1.11944E-12  3.82181E-13        
+                                     ------------ ------------ ------------          ------------ ------------ ------------ ------------ ------------
+ MAX* :                               6.95093E-01  8.04598E-01  1.97970E-01           8.66667E-01  4.66667E-01  7.51295E-01  3.24823E-12  1.05818E-11
+ MIN* :                              -6.95093E-01 -8.04598E-01 -1.97970E-01          -4.66667E-01 -8.66667E-01  7.51295E-01 -4.27159E-12 -1.50921E-11
+
+ ABS* :                               6.95093E-01  8.04598E-01  1.97970E-01           8.66667E-01  8.66667E-01  7.51295E-01  4.27159E-12  1.50921E-11
+ *for output set
+
+ SAP2000 PROBLEM 2-001-THICK                                                                                                     
+
+0                                                                                                          SUBCASE        2
+                                  S T R E S S E S   A T   G R I D   P O I N T S   - -     S U R F A C E     600
+0                       SURFACE X-AXIS X  NORMAL(Z-AXIS)  Z         REFERENCE COORDINATE SYSTEM FOR SURFACE DEFINITION CID        0
+     GRID      ELEMENT            STRESSES IN SURFACE SYSTEM           PRINCIPAL STRESSES            MAX
+     ID          ID    FIBER   NORMAL-X   NORMAL-Y   SHEAR-XY     ANGLE      MAJOR      MINOR      SHEAR     VON MISES
+      303        0     Z1       6.666667E-01  6.666667E-01  2.000000E-01  45.0000   8.666667E-01  4.666667E-01  2.000000E-01  7.512952E-01
+                       Z2      -6.666667E-01 -6.666667E-01 -2.000000E-01 -45.0000  -4.666667E-01 -8.666667E-01  2.000000E-01  7.512952E-01
+                       MID      0.0           0.0           0.0            0.0000   0.0           0.0           0.0           0.0
+      302        0     Z1       6.666667E-01  6.666667E-01  2.000000E-01  45.0000   8.666667E-01  4.666667E-01  2.000000E-01  7.512952E-01
+                       Z2      -6.666667E-01 -6.666667E-01 -2.000000E-01 -45.0000  -4.666667E-01 -8.666667E-01  2.000000E-01  7.512952E-01
+                       MID      0.0           0.0           0.0            0.0000   0.0           0.0           0.0           0.0
+      304        0     Z1       6.666667E-01  6.666667E-01  2.000000E-01  45.0000   8.666667E-01  4.666667E-01  2.000000E-01  7.512952E-01
+                       Z2      -6.666667E-01 -6.666667E-01 -2.000000E-01 -45.0000  -4.666667E-01 -8.666667E-01  2.000000E-01  7.512952E-01
+                       MID      0.0           0.0           0.0            0.0000   0.0           0.0           0.0           0.0
+      321        0     Z1       6.666667E-01  6.666667E-01  2.000000E-01  45.0000   8.666667E-01  4.666667E-01  2.000000E-01  7.512952E-01
+                       Z2      -6.666667E-01 -6.666667E-01 -2.000000E-01 -45.0000  -4.666667E-01 -8.666667E-01  2.000000E-01  7.512952E-01
+                       MID      0.0           0.0           0.0            0.0000   0.0           0.0           0.0           0.0
+      316        0     Z1       6.666667E-01  6.666667E-01  2.000000E-01  45.0000   8.666667E-01  4.666667E-01  2.000000E-01  7.512952E-01
+                       Z2      -6.666667E-01 -6.666667E-01 -2.000000E-01 -45.0000  -4.666667E-01 -8.666667E-01  2.000000E-01  7.512952E-01
+                       MID      0.0           0.0           0.0            0.0000   0.0           0.0           0.0           0.0
+      314        0     Z1       6.666667E-01  6.666667E-01  2.000000E-01  45.0000   8.666667E-01  4.666667E-01  2.000000E-01  7.512952E-01
+                       Z2      -6.666667E-01 -6.666667E-01 -2.000000E-01 -45.0000  -4.666667E-01 -8.666667E-01  2.000000E-01  7.512952E-01
+                       MID      0.0           0.0           0.0            0.0000   0.0           0.0           0.0           0.0
+      305        0     Z1       6.666667E-01  6.666667E-01  2.000000E-01  45.0000   8.666667E-01  4.666667E-01  2.000000E-01  7.512952E-01
+                       Z2      -6.666667E-01 -6.666667E-01 -2.000000E-01 -45.0000  -4.666667E-01 -8.666667E-01  2.000000E-01  7.512952E-01
+                       MID      0.0           0.0           0.0            0.0000   0.0           0.0           0.0           0.0
+      307        0     Z1       6.666667E-01  6.666667E-01  2.000000E-01  45.0000   8.666667E-01  4.666667E-01  2.000000E-01  7.512952E-01
+                       Z2      -6.666667E-01 -6.666667E-01 -2.000000E-01 -45.0000  -4.666667E-01 -8.666667E-01  2.000000E-01  7.512952E-01
+                       MID      0.0           0.0           0.0            0.0000   0.0           0.0           0.0           0.0
+      319        0     Z1       6.666667E-01  6.666667E-01  2.000000E-01  45.0000   8.666667E-01  4.666667E-01  2.000000E-01  7.512952E-01
+                       Z2      -6.666667E-01 -6.666667E-01 -2.000000E-01 -45.0000  -4.666667E-01 -8.666667E-01  2.000000E-01  7.512952E-01
+                       MID      0.0           0.0           0.0            0.0000   0.0           0.0           0.0           0.0
+      318        0     Z1       6.666667E-01  6.666667E-01  2.000000E-01  45.0000   8.666667E-01  4.666667E-01  2.000000E-01  7.512952E-01
+                       Z2      -6.666667E-01 -6.666667E-01 -2.000000E-01 -45.0000  -4.666667E-01 -8.666667E-01  2.000000E-01  7.512952E-01
+                       MID      0.0           0.0           0.0            0.0000   0.0           0.0           0.0           0.0
+      324        0     Z1       6.666667E-01  6.666667E-01  2.000000E-01  45.0000   8.666667E-01  4.666667E-01  2.000000E-01  7.512952E-01
+                       Z2      -6.666667E-01 -6.666667E-01 -2.000000E-01 -45.0000  -4.666667E-01 -8.666667E-01  2.000000E-01  7.512952E-01
+                       MID      0.0           0.0           0.0            0.0000   0.0           0.0           0.0           0.0
+      306        0     Z1       6.666667E-01  6.666667E-01  2.000000E-01  45.0000   8.666667E-01  4.666667E-01  2.000000E-01  7.512952E-01
+                       Z2      -6.666667E-01 -6.666667E-01 -2.000000E-01 -45.0000  -4.666667E-01 -8.666667E-01  2.000000E-01  7.512952E-01
+                       MID      0.0           0.0           0.0            0.0000   0.0           0.0           0.0           0.0
+      320        0     Z1       6.666667E-01  6.666667E-01  2.000000E-01  45.0000   8.666667E-01  4.666667E-01  2.000000E-01  7.512952E-01
+                       Z2      -6.666667E-01 -6.666667E-01 -2.000000E-01 -45.0000  -4.666667E-01 -8.666667E-01  2.000000E-01  7.512952E-01
+                       MID      0.0           0.0           0.0            0.0000   0.0           0.0           0.0           0.0
+      313        0     Z1       6.666667E-01  6.666667E-01  2.000000E-01  45.0000   8.666667E-01  4.666667E-01  2.000000E-01  7.512952E-01
+                       Z2      -6.666667E-01 -6.666667E-01 -2.000000E-01 -45.0000  -4.666667E-01 -8.666667E-01  2.000000E-01  7.512952E-01
+                       MID      0.0           0.0           0.0            0.0000   0.0           0.0           0.0           0.0
+      325        0     Z1       6.666667E-01  6.666667E-01  2.000000E-01  45.0000   8.666667E-01  4.666667E-01  2.000000E-01  7.512952E-01
+                       Z2      -6.666667E-01 -6.666667E-01 -2.000000E-01 -45.0000  -4.666667E-01 -8.666667E-01  2.000000E-01  7.512952E-01
+                       MID      0.0           0.0           0.0            0.0000   0.0           0.0           0.0           0.0
+      308        0     Z1       6.666667E-01  6.666667E-01  2.000000E-01  45.0000   8.666667E-01  4.666667E-01  2.000000E-01  7.512952E-01
+                       Z2      -6.666667E-01 -6.666667E-01 -2.000000E-01 -45.0000  -4.666667E-01 -8.666667E-01  2.000000E-01  7.512952E-01
+                       MID      0.0           0.0           0.0            0.0000   0.0           0.0           0.0           0.0
+      322        0     Z1       6.666667E-01  6.666667E-01  2.000000E-01  45.0000   8.666667E-01  4.666667E-01  2.000000E-01  7.512952E-01
+                       Z2      -6.666667E-01 -6.666667E-01 -2.000000E-01 -45.0000  -4.666667E-01 -8.666667E-01  2.000000E-01  7.512952E-01
+                       MID      0.0           0.0           0.0            0.0000   0.0           0.0           0.0           0.0
+      310        0     Z1       6.666667E-01  6.666667E-01  2.000000E-01  45.0000   8.666667E-01  4.666667E-01  2.000000E-01  7.512952E-01
+                       Z2      -6.666667E-01 -6.666667E-01 -2.000000E-01 -45.0000  -4.666667E-01 -8.666667E-01  2.000000E-01  7.512952E-01
+                       MID      0.0           0.0           0.0            0.0000   0.0           0.0           0.0           0.0
+      317        0     Z1       6.666667E-01  6.666667E-01  2.000000E-01  45.0000   8.666667E-01  4.666667E-01  2.000000E-01  7.512952E-01
+                       Z2      -6.666667E-01 -6.666667E-01 -2.000000E-01 -45.0000  -4.666667E-01 -8.666667E-01  2.000000E-01  7.512952E-01
+                       MID      0.0           0.0           0.0            0.0000   0.0           0.0           0.0           0.0
+      323        0     Z1       6.666667E-01  6.666667E-01  2.000000E-01  45.0000   8.666667E-01  4.666667E-01  2.000000E-01  7.512952E-01
+                       Z2      -6.666667E-01 -6.666667E-01 -2.000000E-01 -45.0000  -4.666667E-01 -8.666667E-01  2.000000E-01  7.512952E-01
+                       MID      0.0           0.0           0.0            0.0000   0.0           0.0           0.0           0.0
+      301        0     Z1       6.666667E-01  6.666667E-01  2.000000E-01  45.0000   8.666667E-01  4.666667E-01  2.000000E-01  7.512952E-01
+                       Z2      -6.666667E-01 -6.666667E-01 -2.000000E-01 -45.0000  -4.666667E-01 -8.666667E-01  2.000000E-01  7.512952E-01
+                       MID      0.0           0.0           0.0            0.0000   0.0           0.0           0.0           0.0
+      309        0     Z1       6.666667E-01  6.666667E-01  2.000000E-01  45.0000   8.666667E-01  4.666667E-01  2.000000E-01  7.512952E-01
+                       Z2      -6.666667E-01 -6.666667E-01 -2.000000E-01 -45.0000  -4.666667E-01 -8.666667E-01  2.000000E-01  7.512952E-01
+                       MID      0.0           0.0           0.0            0.0000   0.0           0.0           0.0           0.0
+      315        0     Z1       6.666667E-01  6.666667E-01  2.000000E-01  45.0000   8.666667E-01  4.666667E-01  2.000000E-01  7.512952E-01
+                       Z2      -6.666667E-01 -6.666667E-01 -2.000000E-01 -45.0000  -4.666667E-01 -8.666667E-01  2.000000E-01  7.512952E-01
+                       MID      0.0           0.0           0.0            0.0000   0.0           0.0           0.0           0.0
+      311        0     Z1       6.666667E-01  6.666667E-01  2.000000E-01  45.0000   8.666667E-01  4.666667E-01  2.000000E-01  7.512952E-01
+                       Z2      -6.666667E-01 -6.666667E-01 -2.000000E-01 -45.0000  -4.666667E-01 -8.666667E-01  2.000000E-01  7.512952E-01
+                       MID      0.0           0.0           0.0            0.0000   0.0           0.0           0.0           0.0
+      312        0     Z1       6.666667E-01  6.666667E-01  2.000000E-01  45.0000   8.666667E-01  4.666667E-01  2.000000E-01  7.512952E-01
+                       Z2      -6.666667E-01 -6.666667E-01 -2.000000E-01 -45.0000  -4.666667E-01 -8.666667E-01  2.000000E-01  7.512952E-01
+                       MID      0.0           0.0           0.0            0.0000   0.0           0.0           0.0           0.0
+
+ >> LINK  9 END
+
+    Total CPU time =  1.09E-01 seconds
+
+ >> MYSTRAN END    : 10/ 4/2026 at 14:18:33.270
+
+                                          * * * END OF JOB * * *
