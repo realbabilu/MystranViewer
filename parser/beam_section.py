@@ -395,6 +395,18 @@ def extract_section(ptype: str, mid: int, params: dict) -> BeamSection:
         except ValueError:
             return default
 
+    # ---- CROD (same as PROD: circular rod) ----
+    if ptype == 'CROD':
+        A  = g('f3')
+        r  = _safe_sqrt(A / math.pi) if A > 0 else 0.0
+        dia = 2*r
+        prof = _circle_profile(r) if r > 0 else _circle_profile(0.01)
+        return BeamSection(
+            shape='circle', b=dia, h=dia, area=A, cap_ends=True, dims=[dia],
+            label=f'CROD dia={dia:.4g}',
+            profile=prof, loops=[prof]
+        )
+
     # ---- PROD (rod / circular solid) ----
     if ptype == 'PROD':
         A  = g('f3')

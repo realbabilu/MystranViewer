@@ -1,6 +1,7 @@
 """
 MYSTRAN .dat file parser
-Supports: GRID, CBAR, CBEAM, CROD, CQUAD4, CTRIA3, CHEXA, CPENTA, CTETRA
+Supports: GRID, CBAR, CBEAM, CROD, CQUAD4, CQUAD8, CTRIA3, CTRIA6,
+          CHEXA, CPENTA, CTETRA, CPYRAM
           SPC, FORCE, MOMENT, MAT1, PBAR, PSHELL, PSOLID, etc.
 """
 
@@ -19,7 +20,7 @@ class Node:
 @dataclass
 class Element:
     id: int
-    type: str        # 'CBAR','CBEAM','CROD','CQUAD4','CTRIA3','CHEXA','CPENTA','CTETRA'
+    type: str        # 'CBAR','CBEAM','CROD','CQUAD4','CQUAD8','CTRIA3','CTRIA6','CHEXA','CPENTA','CTETRA','CPYRAM'
     nodes: List[int] = field(default_factory=list)
     pid: int = 0     # property id
     # CBAR/CBEAM: orientation vector (v-vector, global coords) or None
@@ -100,6 +101,7 @@ class MystranModel:
     pload1s: "List[object]" = field(default_factory=list)
     subcase_loads: Dict[int, int] = field(default_factory=dict)
     subcase_spcs: Dict[int, int] = field(default_factory=dict)
+    surfaces: Dict[int, Tuple[List[int], str]] = field(default_factory=dict)  # surface_id -> (eids, normal_dir)
 
     def bbox(self) -> Tuple[np.ndarray, np.ndarray]:
         """Return (min_xyz, max_xyz) bounding box."""
@@ -122,7 +124,7 @@ class MystranModel:
         e1d = {k: v for k, v in self.elements.items()
                if v.type in ('CBAR', 'CBEAM', 'CROD')}
         e2d = {k: v for k, v in self.elements.items()
-               if v.type in ('CQUAD4', 'CTRIA3')}
+               if v.type in ('CQUAD4', 'CQUAD8', 'CTRIA3', 'CTRIA6')}
         e3d = {k: v for k, v in self.elements.items()
                if v.type in ('CHEXA', 'CPENTA', 'CTETRA', 'CPYRAM')}
         return e1d, e2d, e3d
@@ -200,6 +202,7 @@ def _is_plain_int_token(s: str) -> bool:
 class DatParser:
     def __init__(self):
         self.model = MystranModel()
+        self._set_members: dict = {}
 
     def parse(self, filepath: str) -> MystranModel:
         with open(filepath, 'r', errors='replace') as f:
@@ -282,6 +285,50 @@ class DatParser:
                     self.model.subcase_spcs[current_subcase] = int(rhs.split()[0])
                 except ValueError:
                     pass
+            if up.startswith('SET'):
+                self._parse_case_set(line)
+            elif up.startswith('SURFACE'):
+                self._parse_case_surface(line)
+
+    def _parse_case_set(self, line: str):
+        """Parse SET card from case-control section: SET 6 = 51,52,..."""
+        # Format: SET, sid, =, id1, id2, ...
+        # or: SET 6 = 51,52,53
+        import re
+        # Remove 'SET' keyword, parse rest
+        rest = line[3:].strip()
+        # Split on =
+        parts = re.split(r'[=,]', rest)
+        parts = [p.strip() for p in parts if p.strip()]
+        if not parts:
+            return
+        sid = _int(parts[0])
+        ids = [_int(p) for p in parts[1:] if _int(p) > 0]
+        self._set_members[sid] = ids
+
+    def _parse_case_surface(self, line: str):
+        """Parse SURFACE card from case-control: SURFACE 600 SET 6 NORMAL Z"""
+        import re
+        rest = line[8:].strip()  # after SURFACE
+        parts = re.split(r'[\s,]+', rest)
+        parts = [p.strip() for p in parts if p.strip()]
+        if not parts:
+            return
+        sid = _int(parts[0])
+        # Find SET reference
+        set_ref = 0
+        for i, p in enumerate(parts):
+            if p.upper() == 'SET' and i+1 < len(parts):
+                set_ref = _int(parts[i+1])
+                break
+        # Find NORMAL direction
+        normal_dir = 'Z'
+        for i, p in enumerate(parts):
+            if p.upper() == 'NORMAL' and i+1 < len(parts):
+                normal_dir = parts[i+1].upper()
+                break
+        if set_ref and set_ref in self._set_members:
+            self.model.surfaces[sid] = (self._set_members[set_ref], normal_dir)
 
     def _join_continuations(self, lines: List[str]) -> List[List[str]]:
         """
@@ -312,15 +359,20 @@ class DatParser:
                 if not nxt.strip():
                     break
                 # Continuation marker: starts with + or * or has +/blank in col 0
-                is_cont_free = ',' in nxt and nxt.strip().startswith('+')
+                is_cont_free = (',' in nxt and nxt.strip().startswith('+')) or \
+                              (nxt.strip() and nxt.strip()[0] == ',' and
+                               not nxt.strip()[1:].lstrip('+-').rstrip().isdigit())
                 is_cont_large = nxt.startswith('*')
                 is_cont_small = (len(nxt) >= 1 and nxt[0] in ('+', ' ', '\t')) and nxt.strip()
 
                 if is_cont_free or is_cont_large or is_cont_small:
                     # Check it's not a new card
-                    if not nxt.strip()[0].isalpha() and nxt.strip()[0] not in ('*', '+'):
+                    # Lines starting with ',' (free-field cont) or '*' are always continuations
+                    if nxt.strip()[0] == ',' or nxt.strip()[0] == '*':
+                        pass  # always a continuation
+                    elif not nxt.strip()[0].isalpha() and nxt.strip()[0] not in ('*', '+'):
                         break
-                    if nxt.strip()[0].isalpha() and not nxt.strip().startswith('+'):
+                    elif nxt.strip()[0].isalpha() and not nxt.strip().startswith('+'):
                         # Could be new card - check col 0
                         if nxt[0] != ' ' and nxt[0] != '+' and nxt[0] != '*':
                             break
@@ -353,10 +405,10 @@ class DatParser:
             self._parse_1d(name, f)
         elif name in ('RBE2', 'RBE3'):
             self._parse_rigid(name, f)
-        elif name in ('CQUAD4','CQUADR'):
-            self._parse_cquad4(f)
-        elif name in ('CTRIA3','CTRIAR'):
-            self._parse_ctria3(f)
+        elif name in ('CQUAD4','CQUADR','CQUAD8'):
+            self._parse_cquad4(name, f)
+        elif name in ('CTRIA3','CTRIAR','CTRIA6'):
+            self._parse_ctria3(name, f)
         elif name in ('CHEXA','CHEXA8'):
             self._parse_chexa(f)
         elif name in ('CPYRAM','CPYRA5','CPYRA'):
@@ -464,15 +516,31 @@ class DatParser:
             self.model.rigids.append(RigidElement(
                 id=eid, type='RBE3', ref_grid=ref_grid, ref_comp=ref_comp, dep_grids=dep))
 
-    def _parse_cquad4(self, f):
+    def _parse_cquad4(self, name, f):
         eid = _int(f[1]); pid = _int(f[2])
-        ns  = [_int(f[3]), _int(f[4]), _int(f[5]), _int(f[6])]
-        self.model.elements[eid] = Element(id=eid, type='CQUAD4', nodes=ns, pid=pid)
+        # CQUAD4/CQUADR: 4 corner nodes; CQUAD8: 4 corners + 4 mid-edge nodes
+        n_corners = 4
+        ns = [_int(f[i]) for i in range(3, 3 + n_corners)]
+        etype = 'CQUAD4'
+        if name == 'CQUAD8':
+            # CQUAD8 has 4 mid-edge nodes after the 4 corners
+            mid_nodes = [_int(f[i]) for i in range(7, 11)]
+            ns = ns + mid_nodes
+            etype = 'CQUAD8'
+        self.model.elements[eid] = Element(id=eid, type=etype, nodes=ns, pid=pid)
 
-    def _parse_ctria3(self, f):
+    def _parse_ctria3(self, name, f):
         eid = _int(f[1]); pid = _int(f[2])
-        ns  = [_int(f[3]), _int(f[4]), _int(f[5])]
-        self.model.elements[eid] = Element(id=eid, type='CTRIA3', nodes=ns, pid=pid)
+        # CTRIA3/CTRIAR: 3 corner nodes; CTRIA6: 3 corners + 3 mid-edge nodes
+        n_corners = 3
+        ns = [_int(f[i]) for i in range(3, 3 + n_corners)]
+        etype = 'CTRIA3'
+        if name == 'CTRIA6':
+            # CTRIA6 has 3 mid-edge nodes after the 3 corners
+            mid_nodes = [_int(f[i]) for i in range(6, 9)]
+            ns = ns + mid_nodes
+            etype = 'CTRIA6'
+        self.model.elements[eid] = Element(id=eid, type=etype, nodes=ns, pid=pid)
 
     def _parse_cpyram(self, f):
         """CPYRAM: 5-node pyramid. Nodes 1-4=base quad, node 5=apex."""
@@ -497,6 +565,39 @@ class DatParser:
         ns  = [_int(f[i]) for i in range(3, 7)]
         self.model.elements[eid] = Element(id=eid, type='CTETRA', nodes=ns, pid=pid)
 
+
+    def _parse_set(self, f):
+        """Parse SET card: SET, sid, option, g1, g2, ..., gn."""
+        sid = _int(f[1])
+        if sid <= 0:
+            return
+        ids = []
+        for tok in f[2:]:
+            if str(tok).strip():
+                i = _int(tok)
+                if i > 0:
+                    ids.append(i)
+        # Store globally — will be linked by SURFACE cards later
+        self._current_set = sid
+        self._set_members[sid] = ids
+
+    def _parse_surface(self, f):
+        """Parse SURFACE card: SURFACE, sid, option, set1, set2."""
+        sid = _int(f[1])
+        option = str(f[2]).strip().upper() if len(f) > 2 else ''
+        set1 = _int(f[3]) if len(f) > 3 else 0
+        set2 = _int(f[4]) if len(f) > 4 else 0
+        if sid <= 0:
+            return
+        set_ref = set1 or set2
+        # NORMAL direction: look for "NORMAL X/Y/Z" keyword in field list
+        normal_dir = 'Z'
+        for i, tok in enumerate(f):
+            if str(tok).strip().upper() == 'NORMAL' and i + 1 < len(f):
+                normal_dir = str(f[i + 1]).strip().upper()
+                break
+        if set_ref in self._set_members:
+            self.model.surfaces[sid] = (self._set_members[set_ref], normal_dir)
     def _parse_spc(self, f):
         sid  = _int(f[1])
         nid  = _int(f[2])
@@ -567,7 +668,7 @@ class DatParser:
         # Resolve section immediately
         try:
             from parser.beam_section import extract_section
-            if ptype in ('PBAR','PBEAM','PROD','PBARL','PBEAML'):
+            if ptype in ('PBAR','PBEAM','PROD','CROD','PBARL','PBEAML'):
                 prop.section = extract_section(ptype, mid, params)
         except Exception:
             pass
