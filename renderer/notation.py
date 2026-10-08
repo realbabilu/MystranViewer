@@ -258,10 +258,10 @@ def _elem_local_axes(elem, model):
     pts = [pos[n] for n in elem.nodes if n in pos]
     centroid = np.mean(pts, axis=0).astype(np.float32)
 
-    if elem.type in ('CQUAD4', 'CTRIA3'):
+    if elem.type in ('CQUAD4', 'CQUAD8', 'CTRIA3', 'CTRIA6'):
         # x1 = first edge, x3 = normal, x2 = x3 × x1
         p0, p1 = pts[0], pts[1]
-        p3 = pts[3] if elem.type == 'CQUAD4' and len(pts) >= 4 else pts[2]
+        p3 = pts[3] if elem.type in ('CQUAD4', 'CQUAD8') and len(pts) >= 4 else pts[2]
         x1 = p1 - p0
         n1 = np.linalg.norm(x1)
         if n1 < 1e-12: return None
@@ -335,6 +335,9 @@ def draw_local_axes(
         True
     )
 
+    # Use row-major MVP (GPU convention), matching main.py's _project
+    mvp_t = mvp.T
+
     # Colors: x1=red, x2=green, x3=blue (standard RGB)
     col_x1 = _rgba(1.0, 0.2, 0.2, 0.95)   # red
     col_x2 = _rgba(0.2, 0.9, 0.2, 0.95)   # green
@@ -342,7 +345,7 @@ def draw_local_axes(
 
     for eid, elem in model.elements.items():
         # Filter by element type category
-        if elem.type in ('CQUAD4','CTRIA3') and not show_shell: continue
+        if elem.type in ('CQUAD4','CQUAD8','CTRIA3','CTRIA6') and not show_shell: continue
         if elem.type in ('CBAR','CBEAM','CROD') and not show_frame: continue
         if elem.type in ('CHEXA','CPENTA','CTETRA') and not show_solid: continue
 
@@ -350,7 +353,7 @@ def draw_local_axes(
         if axes is None: continue
         centroid, x1, x2, x3 = axes
 
-        sc0 = _project(centroid, mvp, win_w, win_h, ortho)
+        sc0 = _project(centroid, mvp_t, win_w, win_h, ortho)
         if sc0 is None: continue
 
         axis_glyphs = [
@@ -383,6 +386,208 @@ def draw_local_axes(
             lx = -dy*aw; ly = dx*aw
             ax1 = (sc1[0]-dx*ah+lx, sc1[1]-dy*ah+ly)
             ax2 = (sc1[0]-dx*ah-lx, sc1[1]-dy*ah-ly)
+            dl.add_triangle_filled(sc1, ax1, ax2, col)
+
+    dl.pop_clip_rect()
+
+
+# --------------------------------------------------------------------------
+# Surface Axes (Z-up aligned)
+# --------------------------------------------------------------------------
+
+def _elem_surface_axes(elem, model, normal_dir: str):
+    """
+    Compute (centroid, sx, sy, sz) for Surface Axes.
+
+    sz = DAT NORMAL direction (X/Y/Z global axis).
+    sx, sy = shell local x1, x2 rotated into the plane ⟂ sz
+             so that (sx, sy, sz) is right-handed.
+
+    normal_dir: 'X', 'Y', or 'Z' (DAT SURFACE NORMAL direction)
+    Returns None if not computable.
+    """
+    pos = {nid: model.nodes[nid].xyz
+           for nid in elem.nodes if nid in model.nodes}
+    if len(pos) < 2:
+        return None
+
+    pts = [pos[n] for n in elem.nodes if n in pos]
+    centroid = np.mean(pts, axis=0).astype(np.float32)
+
+    if elem.type not in ('CQUAD4', 'CQUAD8', 'CTRIA3', 'CTRIA6'):
+        return None
+
+    # ── Shell local axes (x1, x2, x3=normal) ─────────────────────────
+    p0, p1 = pts[0], pts[1]
+    p3 = pts[3] if elem.type in ('CQUAD4', 'CQUAD8') and len(pts) >= 4 else pts[2]
+
+    x1 = p1 - p0
+    n1 = np.linalg.norm(x1)
+    if n1 < 1e-12:
+        return None
+    x1 = (x1 / n1).astype(np.float32)
+
+    x3 = np.cross(p1 - p0, p3 - p0).astype(np.float32)
+    n3 = np.linalg.norm(x3)
+    if n3 < 1e-12:
+        return None
+    x3 = x3 / n3
+
+    x2 = np.cross(x3, x1).astype(np.float32)
+    n2 = np.linalg.norm(x2)
+    if n2 < 1e-12:
+        return None
+    x2 = (x2 / n2).astype(np.float32)
+
+    # ── DAT NORMAL → world "up" axis ──────────────────────────────────
+    world_axes = {
+        'X': np.array([1.0, 0.0, 0.0], dtype=np.float32),
+        'Y': np.array([0.0, 1.0, 0.0], dtype=np.float32),
+        'Z': np.array([0.0, 0.0, 1.0], dtype=np.float32),
+    }
+    world_up = world_axes.get(normal_dir.upper(), world_axes['Z'])
+
+    # Sign sz so it aligns with world_up direction
+    if np.dot(x3, world_up) < 0:
+        x2 = -x2
+        x3 = -x3
+        # x1 stays unchanged (x3×x1 still gives correct x2 direction after flip)
+
+    sz = world_up.copy().astype(np.float32)
+
+    # ── Rotate shell frame so x3 lands on world_up ─────────────────────
+    k  = np.cross(x3, world_up)   # rotation axis (≈ 0 if already aligned)
+    kn = np.linalg.norm(k)
+
+    if kn < 1e-9:
+        # x3 already parallel to world_up — pick sx from world XY/XZ/YZ plane
+        # Choose the world axis most ⟂ to sz as sx, then sy = sz × sx
+        dots = [abs(np.dot(world_axes[a], sz)) for a in ('X', 'Y', 'Z')]
+        sx_candidates = [world_axes[a] for a in ('X', 'Y', 'Z')
+                         if abs(np.dot(world_axes[a], sz)) < min(dots)]
+        sx = sx_candidates[0].astype(np.float32) if sx_candidates \
+            else world_axes['X'].astype(np.float32)
+    else:
+        # Rodrigues rotation: R(v) = v·k̂(cosθ-1) + (v×k̂)sinθ + v
+        k = k / kn   # unit rotation axis
+        cos_t = np.dot(x3, world_up)  # cos θ  (x3·world_up = cos θ)
+        sin_t = np.sqrt(max(0.0, 1.0 - cos_t * cos_t))  # sin θ ≥ 0
+
+        def rodrigues(v):
+            return (v * cos_t + np.cross(k, v) * sin_t + k * np.dot(k, v) * (1.0 - cos_t)).astype(np.float32)
+
+        rx1 = rodrigues(x1)
+        rx2 = rodrigues(x2)
+        # rx3 ≈ world_up (by construction, verified below)
+        rx3 = rodrigues(x3)
+
+        # Correct for numeric drift: ensure sz = world_up exactly,
+        # and (sx, sy, sz) is right-handed
+        if np.dot(rx3, world_up) < 0:
+            rx2 = -rx2
+            rx3 = -rx3
+        sz = world_up.copy().astype(np.float32)
+
+        # Project rotated shell x1 into the plane ⟂ sz
+        proj = rx1 - np.dot(rx1, sz) * sz
+        pn = np.linalg.norm(proj)
+        if pn < 1e-9:
+            # x1 ended up parallel to sz → use rx2 instead
+            proj = rx2 - np.dot(rx2, sz) * sz
+            pn = np.linalg.norm(proj)
+            sx = (proj / pn).astype(np.float32) if pn >= 1e-9 \
+                else world_axes['X'].astype(np.float32)
+        else:
+            sx = (proj / pn).astype(np.float32)
+
+    sy = np.cross(sz, sx).astype(np.float32)
+    sy = sy / (np.linalg.norm(sy) + 1e-12)
+
+    return centroid, sx, sy, sz
+
+
+def draw_surface_axes(
+    model: MystranModel,
+    surfaces: dict,   # sid -> (eids, normal_dir)
+    mvp: np.ndarray,
+    win_w: int,
+    win_h: int,
+    ortho: bool = True,
+    length: float = 0.0,
+    margin_left: int = 275,
+    margin_right: int = 260,
+):
+    """Draw Surface Axes arrows at element centroids, Z-up aligned."""
+    if not surfaces:
+        return
+
+    model_scale = model.scale()
+    arrow_len = length if length > 0 else model_scale * 0.07
+
+    dl = imgui.get_foreground_draw_list()
+    dl.push_clip_rect(
+        (float(margin_left), 20.0),
+        (float(win_w - margin_right), float(win_h)),
+        True
+    )
+
+    # Use row-major MVP (GPU convention), matching main.py's _project
+    mvp_t = mvp.T
+
+    # Colors: sx=orange, sy=cyan, sz=yellow (distinguishable from shell RGB)
+    col_sx = _rgba(1.0, 0.55, 0.0, 0.95)   # orange  (surface X)
+    col_sy = _rgba(0.0, 0.85, 1.0, 0.95)   # cyan    (surface Y)
+    col_sz = _rgba(1.0, 0.90, 0.0, 0.95)   # yellow  (surface Z)
+
+    # Build element -> surface mapping
+    elem_to_surf: dict = {}
+    for sid, (eids, normal_dir) in surfaces.items():
+        for eid in eids:
+            elem_to_surf[eid] = (sid, normal_dir)
+
+    for eid, elem in model.elements.items():
+        info = elem_to_surf.get(eid)
+        if info is None:
+            continue
+        sid, normal_dir = info
+
+        axes = _elem_surface_axes(elem, model, normal_dir)
+        if axes is None:
+            continue
+        centroid, sx, sy, sz = axes
+
+        sc0 = _project(centroid, mvp_t, win_w, win_h, ortho)
+        if sc0 is None:
+            continue
+
+        for vec, col, label in [
+            (sx, col_sx, 'x'),
+            (sy, col_sy, 'y'),
+            (sz, col_sz, 'z'),
+        ]:
+            tip_world = centroid + vec * arrow_len
+            sc1 = _project(tip_world, mvp_t, win_w, win_h, ortho)
+            if sc1 is None:
+                continue
+
+            dx = sc1[0] - sc0[0]
+            dy = sc1[1] - sc0[1]
+            ln = np.sqrt(dx * dx + dy * dy)
+            if ln < 2:
+                continue
+            dx /= ln
+            dy /= ln
+
+            # Shaft
+            dl.add_line(sc0, sc1, col, 1.5)
+
+            # Arrowhead
+            ah = 6.0
+            aw = 3.0
+            lx = -dy * aw
+            ly = dx * aw
+            ax1 = (sc1[0] - dx * ah + lx, sc1[1] - dy * ah + ly)
+            ax2 = (sc1[0] - dx * ah - lx, sc1[1] - dy * ah - ly)
             dl.add_triangle_filled(sc1, ax1, ax2, col)
 
     dl.pop_clip_rect()

@@ -97,6 +97,7 @@ C_2D_WIRE = [0.40, 0.85, 1.00]
 C_3D_WIRE = [1.00, 0.85, 0.35]
 C_EDGE    = [0.12, 0.18, 0.28]
 C_SPC     = [1.00, 0.27, 1.00]
+C_SURF    = [1.00, 0.10, 1.00]  # magenta: selected surface
 _DIM_FILL = {'1d': C_1D_FILL, '2d': C_2D_FILL, '3d': C_3D_FILL}
 _DIM_WIRE = {'1d': C_1D_WIRE, '2d': C_2D_WIRE, '3d': C_3D_WIRE}
 _BEAM_STRESS_KEYS = {'sxc','sxd','sxe','sxf','smax','smin'}
@@ -114,7 +115,7 @@ def _property_wire_color(pid: int, dim: str):
 
 def _elem_dim(e):
     if e in ('CBAR','CBEAM','CROD'): return '1d'
-    if e in ('CQUAD4','CTRIA3'):     return '2d'
+    if e in ('CQUAD4','CQUAD8','CTRIA3','CTRIA6'): return '2d'
     return '3d'  # CHEXA,CPENTA,CTETRA,CPYRAM
 
 # ---------------------------------------------------------------------------
@@ -139,6 +140,13 @@ def _cpyram_edges(pos, nodes):
     return [(b[0],b[1]),(b[1],b[2]),(b[2],b[3]),(b[3],b[0]),
             (b[0],ap),(b[1],ap),(b[2],ap),(b[3],ap)]
 
+def _expand_range(lo, hi):
+    """Add 1% margin on both ends when values are nearly identical."""
+    if hi - lo < 1e-15:
+        margin = abs(lo) * 0.01 + 1e-10
+        return lo - margin, hi + margin
+    return lo, hi
+
 def _face_normal(v0,v1,v2):
     n = np.cross(v1-v0, v2-v0)
     l = np.linalg.norm(n)
@@ -149,8 +157,29 @@ def _build_face_tris(pos, nodes, etype):
     t=[]
     if etype=='CTRIA3':
         t.append((g(nodes[0]),g(nodes[1]),g(nodes[2])))
+    elif etype=='CTRIA6':
+        # 6-node tri: centroid-split into 3 triangles (corner+corner+mid for each edge)
+        # nodes: [c1,c2,c3, m12,m23,m31]
+        c = [g(nodes[0]), g(nodes[1]), g(nodes[2])]
+        m = [g(nodes[3]), g(nodes[4]), g(nodes[5])]
+        # centroid as numpy array
+        gc = ((c[0] + c[1] + c[2]) / 3.0).astype(np.float32)
+        t += [(c[0], m[0], gc), (m[0], c[1], gc),
+              (c[1], m[1], gc), (m[1], c[2], gc),
+              (c[2], m[2], gc), (m[2], c[0], gc)]
     elif etype=='CQUAD4':
         t+=[(g(nodes[0]),g(nodes[1]),g(nodes[2])),(g(nodes[0]),g(nodes[2]),g(nodes[3]))]
+    elif etype=='CQUAD8':
+        # 8-node quad: centroid-split into 4 triangles (corner-mid-corner per edge)
+        # nodes: [c1,c2,c3,c4, m12,m23,m34,m41]
+        c = [g(nodes[0]), g(nodes[1]), g(nodes[2]), g(nodes[3])]
+        m = [g(nodes[4]), g(nodes[5]), g(nodes[6]), g(nodes[7])]
+        # centroid as numpy array
+        gc = ((c[0] + c[1] + c[2] + c[3]) / 4.0).astype(np.float32)
+        t += [(c[0], m[0], gc), (m[0], c[1], gc),
+              (c[1], m[1], gc), (m[1], c[2], gc),
+              (c[2], m[2], gc), (m[2], c[3], gc),
+              (c[3], m[3], gc), (m[3], c[0], gc)]
     elif etype=='CTETRA':
         for f in [(0,1,2),(0,1,3),(1,2,3),(0,2,3)]:
             t.append(tuple(g(nodes[i]) for i in f))
@@ -168,11 +197,23 @@ def _build_face_tris_with_nodes(pos, nodes, etype):
     t=[]
     if etype=='CTRIA3':
         t.append(((g(nodes[0]), nodes[0]), (g(nodes[1]), nodes[1]), (g(nodes[2]), nodes[2])))
+    elif etype=='CTRIA6':
+        c = [(g(nodes[0]), nodes[0]), (g(nodes[1]), nodes[1]), (g(nodes[2]), nodes[2])]
+        m = [(g(nodes[3]), nodes[3]), (g(nodes[4]), nodes[4]), (g(nodes[5]), nodes[5])]
+        gc = ((c[0][0] + c[1][0] + c[2][0]) / 3.0).astype(np.float32)
+        t += [(c[0], m[0], (gc, -1)), (m[0], c[1], (gc, -1)), (c[1], m[1], (gc, -1)),
+              (m[1], c[2], (gc, -1)), (c[2], m[2], (gc, -1)), (m[2], c[0], (gc, -1))]
     elif etype=='CQUAD4':
         t += [
             ((g(nodes[0]), nodes[0]), (g(nodes[1]), nodes[1]), (g(nodes[2]), nodes[2])),
             ((g(nodes[0]), nodes[0]), (g(nodes[2]), nodes[2]), (g(nodes[3]), nodes[3])),
         ]
+    elif etype=='CQUAD8':
+        c = [(g(nodes[0]), nodes[0]), (g(nodes[1]), nodes[1]), (g(nodes[2]), nodes[2]), (g(nodes[3]), nodes[3])]
+        m = [(g(nodes[4]), nodes[4]), (g(nodes[5]), nodes[5]), (g(nodes[6]), nodes[6]), (g(nodes[7]), nodes[7])]
+        gc = ((c[0][0]+c[1][0]+c[2][0]+c[3][0])/4.0).astype(np.float32)
+        t += [(c[0], m[0], (gc,-1)), (m[0], c[1], (gc,-1)), (c[1], m[1], (gc,-1)), (m[1], c[2], (gc,-1)),
+              (c[2], m[2], (gc,-1)), (m[2], c[3], (gc,-1)), (c[3], m[3], (gc,-1)), (m[3], c[0], (gc,-1))]
     elif etype=='CTETRA':
         for f in [(0,1,2),(0,1,3),(1,2,3),(0,2,3)]:
             t.append(tuple((g(nodes[i]), nodes[i]) for i in f))
@@ -202,7 +243,14 @@ def _build_edge_lines(pos, nodes, etype):
     def g(n): return pos.get(n, np.zeros(3,dtype=np.float32))
     if etype in ('CBAR','CBEAM','CROD'): return [(g(nodes[0]),g(nodes[1]))]
     elif etype=='CTRIA3': return [(g(nodes[i]),g(nodes[(i+1)%3])) for i in range(3)]
+    elif etype=='CTRIA6': return [(g(nodes[i]),g(nodes[(i+1)%3])) for i in range(3)] + \
+                                  [(g(nodes[0]),g(nodes[3])),(g(nodes[1]),g(nodes[4])),(g(nodes[2]),g(nodes[5]))]
     elif etype=='CQUAD4': return [(g(nodes[i]),g(nodes[(i+1)%4])) for i in range(4)]
+    elif etype=='CQUAD8': return [(g(nodes[i]),g(nodes[(i+1)%4])) for i in range(4)] + \
+                                  [(g(nodes[0]),g(nodes[4])),(g(nodes[4]),g(nodes[1])),
+                                   (g(nodes[1]),g(nodes[5])),(g(nodes[5]),g(nodes[2])),
+                                   (g(nodes[2]),g(nodes[6])),(g(nodes[6]),g(nodes[3])),
+                                   (g(nodes[3]),g(nodes[7])),(g(nodes[7]),g(nodes[0]))]
     elif etype=='CTETRA': return [(g(nodes[a]),g(nodes[b])) for a,b in [(0,1),(0,2),(0,3),(1,2),(1,3),(2,3)]]
     elif etype=='CPENTA': return [(g(nodes[a]),g(nodes[b])) for a,b in [(0,1),(1,2),(2,0),(3,4),(4,5),(5,3),(0,3),(1,4),(2,5)]]
     elif etype=='CHEXA':  return [(g(nodes[a]),g(nodes[b])) for a,b in [(0,1),(1,2),(2,3),(3,0),(4,5),(5,6),(6,7),(7,4),(0,4),(1,5),(2,6),(3,7)]]
@@ -216,7 +264,14 @@ def _shell_thick_edges(pos, nodes, etype, t):
     def g(n): return pos.get(n, np.zeros(3,dtype=np.float32))
     if t <= 1e-12:
         return _build_edge_lines(pos, nodes, etype)
-    pts = [g(n) for n in nodes]
+    # For higher-order shells (Q8/T6), use corner nodes only for extrusion
+    if etype in ('CQUAD8',):
+        corner_idx = [0, 1, 2, 3]
+    elif etype in ('CTRIA6',):
+        corner_idx = [0, 1, 2]
+    else:
+        corner_idx = list(range(len(nodes)))
+    pts = [g(nodes[i]) for i in corner_idx]
     if len(pts) < 3: return _build_edge_lines(pos, nodes, etype)
     # Compute face normal
     nrm = np.cross(pts[1]-pts[0], pts[2]-pts[0]).astype(np.float32)
@@ -233,12 +288,23 @@ def _shell_thick_edges(pos, nodes, etype, t):
     for i in range(n): edges.append((bot[i], bot[(i+1)%n]))
     # Vertical corner edges
     for i in range(n): edges.append((top[i], bot[i]))
+    # For Q8/T6 also add mid-edge nodes to the wireframe
+    if etype in ('CQUAD8', 'CTRIA6'):
+        for i in range(len(corner_idx), len(nodes)):
+            edges.append((g(nodes[i-1]) if i > 0 else pts[0], g(nodes[i])))
+        if etype == 'CQUAD8':
+            edges.append((g(nodes[len(corner_idx)+3]), g(nodes[len(corner_idx)])))  # m41->m12 close
+        elif etype == 'CTRIA6':
+            edges.append((g(nodes[len(corner_idx)+2]), g(nodes[len(corner_idx)])))  # m31->m12 close
     return edges
 
 
 def _shell_thick_tris(pos, nodes, etype, t):
     def g(n): return pos.get(n, np.zeros(3,dtype=np.float32))
-    ns=[g(nodes[i]) for i in range(3 if etype=='CTRIA3' else 4)]
+    if etype == 'CTRIA3' or etype == 'CTRIA6':
+        ns = [g(nodes[i]) for i in range(3)]
+    else:
+        ns = [g(nodes[i]) for i in range(4)]
     nrm=_face_normal(ns[0],ns[1],ns[2])
     top=[v+nrm*(t*.5) for v in ns]; bot=[v-nrm*(t*.5) for v in ns]
     n=len(ns); tris=[]
@@ -248,7 +314,6 @@ def _shell_thick_tris(pos, nodes, etype, t):
         j=(i+1)%n
         tris+=[(bot[i],top[i],top[j]),(bot[i],top[j],bot[j])]
     return tris
-
 def _beam_local_frame(p0,p1,v_orient=None):
     ex=p1-p0; L=np.linalg.norm(ex)
     if L<1e-30: return np.array([1,0,0],dtype=np.float32),np.array([0,1,0],dtype=np.float32),np.array([0,0,1],dtype=np.float32)
@@ -562,6 +627,63 @@ def _beam_section_edges(p0,p1,profile,v_orient=None):
 
 def _get_beam_profile(elem,model,fallback):
     prop=model.properties.get(elem.pid); v_orient=getattr(elem,'v_orient',None); profile=None; cap_ends=True
+
+    # Get this element's area
+    this_area = 0.0
+    if prop is not None and getattr(prop, 'section', None) is not None:
+        this_area = float(getattr(prop.section, 'area', 0.0) or 0.0)
+    elif prop is not None:
+        try:
+            this_area = float(prop.params.get('f3', 0.0) or 0.0)
+        except Exception:
+            pass
+
+    # Compute model-scale parameters
+    mn, mx = model.bbox()
+    total_len = float(np.max(mx - mn)) if model.nodes else 1.0
+    max_area = 0.0
+    for e in model.elements.values():
+        if e.type not in ('CBAR', 'CBEAM', 'CROD') or len(e.nodes) < 2:
+            continue
+        p = model.properties.get(e.pid)
+        sec = getattr(p, 'section', None) if p is not None else None
+        if sec is not None and getattr(sec, 'area', 0.0) > 0.0:
+            max_area = max(max_area, float(sec.area))
+        elif p is not None:
+            try:
+                max_area = max(max_area, float(p.params.get('f3', 0.0) or 0.0))
+            except Exception:
+                pass
+    if max_area <= 1e-30:
+        max_area = max(this_area, 1.0)
+    area_ratio = np.sqrt(max(this_area, 1e-30) / max(max_area, 1e-30))
+
+    # Area == 1.0 → scale-up to model scale; otherwise → approximate from area
+    use_scale_up = abs(this_area - 1.0) < 1e-6
+
+    # PROD: circular cross-section
+    if elem.type == 'CROD' and prop is not None and prop.type == 'PROD':
+        if use_scale_up:
+            d = (total_len / 12.0) * float(np.clip(area_ratio, 0.2, 1.0))
+        else:
+            d = np.sqrt(4.0 * max(this_area, 1e-30) / np.pi)
+        N = 16
+        angle = np.linspace(0, 2 * np.pi, N, endpoint=False)
+        profile = [[(float(d * 0.5 * np.cos(a)), float(d * 0.5 * np.sin(a))) for a in angle]]
+        return profile, v_orient, True
+
+    # PBAR/PBEAM: scale-up or approximate (h=3w for rect)
+    if prop is not None and prop.type in ('PBAR', 'PBEAM'):
+        if use_scale_up:
+            h = (total_len / 12.0) * float(np.clip(area_ratio, 0.2, 1.0))
+            w = h * 0.5
+        else:
+            # Approximate: h = 3w, A = h*w = 3w² → w = sqrt(A/3), h = sqrt(3A)
+            w = np.sqrt(max(this_area, 1e-30) / 3.0)
+            h = 3.0 * w
+        profile = [[(-w*0.5, -h*0.5), (w*0.5, -h*0.5), (w*0.5, h*0.5), (-w*0.5, h*0.5)]]
+        return profile, v_orient, True
+
     explicit_section = bool(prop and prop.type in ('PBARL', 'PBEAML') and prop.section and (prop.section.profile or getattr(prop.section, 'loops', None)))
     if explicit_section:
         s=prop.section; n0=model.nodes.get(elem.nodes[0]); n1=model.nodes.get(elem.nodes[1])
@@ -572,36 +694,14 @@ def _get_beam_profile(elem,model,fallback):
             profile=[[(y*sc,z*sc) for y,z in loop] for loop in src_loops if loop]
             cap_ends = bool(getattr(s, 'cap_ends', True))
     if profile is None:
-        mn, mx = model.bbox()
-        total_len = float(np.max(mx - mn)) if model.nodes else 1.0
-        max_area = 0.0
-        for e in model.elements.values():
-            if e.type not in ('CBAR', 'CBEAM', 'CROD') or len(e.nodes) < 2:
-                continue
-            p = model.properties.get(e.pid)
-            sec = getattr(p, 'section', None) if p is not None else None
-            if sec is not None and getattr(sec, 'area', 0.0) > 0.0:
-                max_area = max(max_area, float(sec.area))
-            elif p is not None:
-                try:
-                    max_area = max(max_area, float(p.params.get('f3', 0.0) or 0.0))
-                except Exception:
-                    pass
-        this_area = 0.0
-        if prop is not None and getattr(prop, 'section', None) is not None:
-            this_area = float(getattr(prop.section, 'area', 0.0) or 0.0)
-        elif prop is not None:
-            try:
-                this_area = float(prop.params.get('f3', 0.0) or 0.0)
-            except Exception:
-                this_area = 0.0
-        if max_area <= 1e-30:
-            max_area = max(this_area, 1.0)
-        area_ratio = np.sqrt(max(this_area, 1e-30) / max(max_area, 1e-30))
-        h = (total_len / 12.0) * float(np.clip(area_ratio, 0.2, 1.0))
+        # Fallback: no explicit section
+        if use_scale_up:
+            h = (total_len / 12.0) * float(np.clip(area_ratio, 0.2, 1.0))
+        else:
+            h = np.sqrt(max(this_area, 1e-30))
         w = h * 0.5
-        profile=[[(-w*0.5,-h*0.5),(w*0.5,-h*0.5),(w*0.5,h*0.5),(-w*0.5,h*0.5)]]
-    return profile,v_orient,cap_ends
+        profile = [[(-w*0.5, -h*0.5), (w*0.5, -h*0.5), (w*0.5, h*0.5), (-w*0.5, h*0.5)]]
+    return profile, v_orient, cap_ends
 
 def _beam_section_cdef_points(prop):
     if prop is None:
@@ -682,6 +782,7 @@ class MeshRenderer:
         self._prog_line =ctx.program(vertex_shader=VERT_LINE, fragment_shader=FRAG_LINE)
         self._prog_fill =ctx.program(vertex_shader=VERT_FILL, fragment_shader=FRAG_FILL)
         self._reset()
+        self._surf_eids = set()
 
     def _reset(self):
         self._solid={'1d':(None,None,0),'2d':(None,None,0),'3d':(None,None,0)}
@@ -736,8 +837,14 @@ class MeshRenderer:
 
     def upload(self,model,results=None,subcase=1,display_mode='wireframe',
                result_type='displacement',cmap_name='rainbow',deform_scale=0.0,
-               nodal_result_source='solver_first', active_spc_sid=0, beam_end_data=None):
+               nodal_result_source='solver_first', active_spc_sid=0, beam_end_data=None,
+               surf_eids=None, selected_surface=0):
         self._reset()
+        self._surf_eids = set(surf_eids) if surf_eids else set()
+        # Compute selected surface shell element ids
+        self._selected_surf_eids = set()
+        if selected_surface > 0 and model is not None and hasattr(model, "surfaces"):
+            self._selected_surf_eids = set(model.surfaces.get(selected_surface, ([],))[0])
         pos={}
         def _result_deform_vec(dr):
             if dr is None:
@@ -774,12 +881,42 @@ class MeshRenderer:
             if result_type=='displacement' and subcase in results.displacements:
                 mags={n:float(np.linalg.norm(d.translation)) for n,d in results.displacements[subcase].items()}
                 lo,hi=min(mags.values(),default=0),max(mags.values(),default=1)
+                lo,hi = _expand_range(lo,hi)
                 disp_lo, disp_hi = lo, hi
                 disp_cmap = cmap
                 for n,m in mags.items(): c_node[n]=cmap[int(np.clip((m-lo)/(hi-lo+1e-30),0,1)*255)].tolist()
+            # GP surface stress contours (nodal, global coords)
+            # result_type format: gp_vm_mid, gp_sxx_z1, gp_txy_z2, etc.
+            elif result_type.startswith('gp_'):
+                # Parse base component and fiber from result_type
+                # e.g. 'gp_vm_mid' -> base='gp_vm', fib='MID'
+                #      'gp_sxx_z1'  -> base='gp_sxx', fib='Z1'
+                parts_rt = result_type.rsplit('_', 1)
+                base_rt = parts_rt[0]   # 'gp_vm', 'gp_sxx', etc.
+                fib_key = parts_rt[1] if len(parts_rt) == 2 else 'mid'  # 'mid', 'z1', 'z2'
+                fib_map = {'mid': 'MID', 'z1': 'Z1', 'z2': 'Z2'}
+                fib = fib_map.get(fib_key, fib_key.upper())
+                gp_attr_map = {'gp_vm':'ovm','gp_sxx':'sxx','gp_syy':'syy',
+                               'gp_txy':'txy','gp_s1':'s1','gp_s2':'s2'}
+                attr = gp_attr_map.get(base_rt, 'ovm')
+                gps = getattr(results, 'gp_stresses', {})
+                if subcase in gps:
+                    # Filter to matching fiber
+                    gpd = {k: v for k, v in gps[subcase].items()
+                            if isinstance(k, tuple) and len(k) == 2 and k[1] == fib}
+                    if gpd:
+                        vals = [getattr(gp, attr, 0.0) for gp in gpd.values()]
+                        if vals:
+                            lo, hi = min(vals), max(vals)
+                            lo, hi = _expand_range(lo, hi)
+                            for key, gp in gpd.items():
+                                nid = key[0]
+                                v = getattr(gp, attr, 0.0)
+                                c_node[nid] = cmap[int(np.clip((v-lo)/(hi-lo+1e-30),0,1)*255)].tolist()
             elif subcase in results.stresses and result_type in (
                     'von_mises','oxx','oyy','txy','omax','omin',
-                    'von_mises_top','von_mises_bottom',
+                    'von_mises_top','oxx_top','oyy_top','txy_top','omax_top','omin_top',
+                    'von_mises_bottom','oxx_bottom','oyy_bottom','txy_bottom','omax_bottom','omin_bottom',
                     'nodal_vm','noxx','noyy','ntxy','nomax','nomin'):
                 st = results.stresses[subcase]
                 # Handle nodal avg dict vs element stress dict
@@ -796,8 +933,15 @@ class MeshRenderer:
                     nodal_avg   = st.get('_derived_nodal_avg', {})
                     nodal_comp  = st.get('_derived_nodal_avg_components', {})
                 else:
-                    nodal_avg   = st.get('_solver_nodal_avg', {}) or st.get('_derived_nodal_avg', {})
-                    nodal_comp  = st.get('_solver_nodal_avg_components', {}) or st.get('_derived_nodal_avg_components', {})
+                    # Merge solver + derived per-node. The solver avg only covers
+                    # elements with corner data (e.g. CQUAD4/CQUAD8/CTRIA6); CTRIA3
+                    # is centroid-only, so its nodes exist ONLY in the derived avg.
+                    # A plain `solver or derived` never falls back when solver is
+                    # non-empty, leaving TRIA3 nodes uncolored (blue).
+                    nodal_comp = dict(st.get('_derived_nodal_avg_components', {}))
+                    nodal_comp.update(st.get('_solver_nodal_avg_components', {}))
+                    nodal_avg = dict(st.get('_derived_nodal_avg', {}))
+                    nodal_avg.update(st.get('_solver_nodal_avg', {}))
                 if result_type == 'displacement':
                     pass  # handled above
                 elif result_type in ('nodal_vm','noxx','noyy','ntxy','nomax','nomin'):
@@ -813,9 +957,27 @@ class MeshRenderer:
                     if nodal_comp:
                         nav = [vals.get(base, 0.0) for vals in nodal_comp.values()]
                         lo,hi = min(nav), max(nav)
+                        lo,hi = _expand_range(lo,hi)
                         for nid, vals in nodal_comp.items():
                             v = vals.get(base, 0.0)
                             c_node[nid] = cmap[int(np.clip((v-lo)/(hi-lo+1e-30),0,1)*255)].tolist()
+                    else:
+                        # Fallback: use GPSTRESS data if available
+                        gp_map = {'nodal_vm':'ovm','noxx':'sxx','noyy':'syy',
+                                  'ntxy':'txy','nomax':None,'nomin':None}
+                        gp_attr = gp_map.get(result_type)
+                        if gp_attr:
+                            gps = getattr(results, 'gp_stresses', {})
+                            if subcase in gps:
+                                gpd = gps[subcase]
+                                vals = [getattr(gp, gp_attr, 0.0) for gp in gpd.values()]
+                                if vals:
+                                    lo, hi = min(vals), max(vals)
+                                    lo, hi = _expand_range(lo, hi)
+                                    for key, gp in gpd.items():
+                                        nid = key[0] if isinstance(key, tuple) else key
+                                        v = getattr(gp, gp_attr, 0.0)
+                                        c_node[nid] = cmap[int(np.clip((v-lo)/(hi-lo+1e-30),0,1)*255)].tolist()
                 else:
                     def _get_val(es):
                         if result_type == 'von_mises': return es.von_mises
@@ -823,6 +985,7 @@ class MeshRenderer:
                     vms = [_get_val(s) for s in elem_stress.values()]
                     if not vms: vms = [0, 1]
                     lo,hi = min(vms), max(vms)
+                    lo,hi = _expand_range(lo,hi)
                     for e,s in elem_stress.items():
                         v = _get_val(s)
                         c_elem[e] = cmap[int(np.clip((v-lo)/(hi-lo+1e-30),0,1)*255)].tolist()
@@ -836,22 +999,30 @@ class MeshRenderer:
                     fvals = [v.values.get(result_type,0) for v in real.values()]
                     if fvals:
                         lo,hi = min(fvals),max(fvals)
+                        lo,hi = _expand_range(lo,hi)
                         for eid,ef in real.items():
                             v = ef.values.get(result_type,0)
                             c_elem[eid] = cmap[int(np.clip((v-lo)/(hi-lo+1e-30),0,1)*255)].tolist()
             # Force/moment contours (nodal averaged)
             elif result_type in ('nfx','nfy','nfxy','nmx','nmy','nmxy','nqx','nqy'):
-                _nmap = {'nfx':'fx','nfy':'fy','nfxy':'fxy','nmx':'mx','nmy':'my',
+                _nmap = {'nfx':'nxx','nfy':'nyy','nfxy':'nxy','nmx':'mxx','nmy':'myy',
                          'nmxy':'mxy','nqx':'qx','nqy':'qy'}
                 base = _nmap[result_type]
+                nav = None
+                # Try OP2 nodal avg first
                 if hasattr(results,'forces') and subcase in results.forces:
                     if nodal_result_source == 'derived':
                         nav = results.forces[subcase].get('_derived_nodal_avg', {})
                     else:
                         nav = results.forces[subcase].get('_solver_nodal_avg', {}) or results.forces[subcase].get('_derived_nodal_avg', {})
-                    if nav:
-                        nvals = [v.get(base,0) for v in nav.values()]
+                # Fallback: GPFORCE from F06
+                if not nav and hasattr(results, '_gp_forces') and subcase in results._gp_forces:
+                    nav = results._gp_forces[subcase]
+                if nav:
+                    nvals = [v.get(base,0) for v in nav.values()]
+                    if nvals:
                         lo,hi = min(nvals),max(nvals)
+                        lo,hi = _expand_range(lo,hi)
                         for nid, vd in nav.items():
                             v = vd.get(base,0)
                             c_node[nid] = cmap[int(np.clip((v-lo)/(hi-lo+1e-30),0,1)*255)].tolist()
@@ -898,6 +1069,7 @@ class MeshRenderer:
         for eid,elem in model.elements.items():
             dim=_elem_dim(elem.type)
             fc=list(_DIM_FILL[dim]); wc2=_property_wire_color(getattr(elem, 'pid', 0), dim)
+            # Surface elements get distinct wire color
             use_nodal_contour = (display_mode == 'contour' and eid not in c_elem and
                                  elem.nodes and any(n in c_node for n in elem.nodes))
             if display_mode=='contour':
@@ -1034,7 +1206,9 @@ class MeshRenderer:
                         wv['1d']+=[va,vb]; wc['1d']+=[list(C_EDGE),list(C_EDGE)]
                 continue
 
-            if elem.type in ('CTRIA3','CQUAD4'):
+            if elem.type in ('CTRIA3','CTRIA6','CQUAD4','CQUAD8'):
+                if eid in self._selected_surf_eids:
+                    fc = list(C_SURF)
                 if display_mode in ('wireframe','contour'):
                     # wireframe/contour: flat edges + alpha fill pass handles color
                     edge_col = [0.08,0.10,0.15] if display_mode=='contour' else wc2
@@ -1046,11 +1220,13 @@ class MeshRenderer:
                     if prop and prop.type=='PSHELL':
                         try: thick=float(str(prop.params.get('f3',0)).strip() or 0)
                         except: pass
-                    tris=_shell_thick_tris(pos,elem.nodes,elem.type,thick) if thick>1e-12                          else _build_face_tris(pos,elem.nodes,elem.type)
+                    # Q8/T6: always flat face (mid-edge nodes are visual only)
+                    is_higher_order = elem.type in ("CQUAD8", "CTRIA6")
+                    tris=_build_face_tris(pos,elem.nodes,elem.type) if is_higher_order or thick<=1e-12                          else _shell_thick_tris(pos,elem.nodes,elem.type,thick)
                     for v0,v1,v2 in tris:
                         nm=_face_normal(v0,v1,v2)
                         for v in(v0,v1,v2): sv['2d'].append(v); sc['2d'].append(fc); sn['2d'].append(nm)
-                    if thick > 1e-12:
+                    if thick > 1e-12 and not is_higher_order:
                         for va,vb in _shell_thick_edges(pos,elem.nodes,elem.type,thick):
                             wv['2d']+=[va,vb]; wc['2d']+=[list(C_EDGE),list(C_EDGE)]
                     else:
@@ -1084,23 +1260,47 @@ class MeshRenderer:
         fv2=[]; fc2=[]; fn2=[]
         fv3=[]; fc3=[]; fn3=[]
         for eid,elem in model.elements.items():
-            if elem.type in ('CTRIA3','CQUAD4'):
-                if display_mode=='contour':
+            if elem.type in ('CTRIA3','CTRIA6','CQUAD4','CQUAD8'):
+                # Selected surface: magenta fill
+                if eid in self._selected_surf_eids:
+                    fill_c = list(C_SURF)
+                    if display_mode == "contour" and c_elem.get(eid):
+                        pass  # keep contour color
+                    elif display_mode == "contour" and any(n in c_node for n in elem.nodes):
+                        pass  # keep nodal contour color
+                    else:
+                        fill_c = list(C_SURF)
+                elif display_mode=="contour":
                     if eid in c_elem:
                         fill_c = list(c_elem[eid])
-                    elif elem.nodes and elem.nodes[0] in c_node:
+                    elif any(n in c_node for n in elem.nodes):
                         ns=[c_node[n] for n in elem.nodes if n in c_node]
-                        fill_c=list(np.mean(ns,axis=0)) if ns else list(_DIM_FILL['2d'])
+                        fill_c=list(np.mean(ns,axis=0))
                     else:
                         fill_c=list(_DIM_FILL['2d'])
                 else:
                     fill_c=list(_DIM_FILL['2d'])
                 if display_mode=='contour' and eid not in c_elem and any(n in c_node for n in elem.nodes):
+                    # GPSTRESS is sometimes reported only at corner grids.  Give
+                    # higher-order shell midside/centroid render vertices a color
+                    # interpolated from the reported corners; keep raw GP values intact.
+                    shell_colors = c_node
+                    if result_type.startswith('gp_') and elem.type in ('CTRIA6', 'CQUAD8'):
+                        shell_colors = dict(c_node)
+                        corner_count = 3 if elem.type == 'CTRIA6' else 4
+                        corners = elem.nodes[:corner_count]
+                        for i, mid_nid in enumerate(elem.nodes[corner_count:corner_count*2]):
+                            a, b = corners[i], corners[(i+1) % corner_count]
+                            if mid_nid not in shell_colors and a in c_node and b in c_node:
+                                shell_colors[mid_nid] = list(np.mean((c_node[a], c_node[b]), axis=0))
+                        present = [shell_colors[n] for n in corners if n in shell_colors]
+                        if present:
+                            shell_colors[-1] = list(np.mean(present, axis=0))
                     for tri in _build_face_tris_with_nodes(pos, elem.nodes, elem.type):
                         (v0, n0), (v1, n1), (v2, n2) = tri
                         nm=_face_normal(v0,v1,v2)
                         for v, nid in ((v0, n0), (v1, n1), (v2, n2)):
-                            fv2.append(v); fc2.append(list(c_node.get(nid, fill_c))); fn2.append(nm)
+                            fv2.append(v); fc2.append(list(shell_colors.get(nid, fill_c))); fn2.append(nm)
                 else:
                     for v0,v1,v2 in _build_face_tris(pos,elem.nodes,elem.type):
                         nm=_face_normal(v0,v1,v2)
