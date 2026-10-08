@@ -1,4 +1,4 @@
-﻿"""
+"""
 MYSTRAN Viewer - Clean stable version
 Controls: Left drag=rotate, Right/Mid drag=pan, Scroll=zoom
           F=fit, R=reset, W=wireframe, S=solid/hidden, C=contour, O=ortho, Esc=quit
@@ -11,6 +11,15 @@ import sys as _sys
 if _sys.version_info >= (3, 13):
     print(f"[Warning] Python 3.13 detected - recommended: Python 3.11/3.12")
     print()
+
+# Monkey-patch pyNastran for NX 2512 parameters not in 1.4.1
+try:
+    from pyNastran.op2.op2_interface import op2_scalar as _op2s
+    _op2s.STR_PARAMS_1 |= {b'QUAD4TYP', b'QUAD8TYP', b'CTRIA6TYP',
+                           b'T3D', b'CQUAD4TYP', b'CTRIA6TYP'}
+    _op2s.FLOAT_PARAMS_1 |= {b'CTRIA3TYP'}
+except Exception:
+    pass
 
 import sys, os, ctypes
 sys.path.insert(0, os.path.dirname(__file__))
@@ -30,7 +39,9 @@ from renderer.beam_diagram  import BeamDiagramRenderer, auto_beam_scale, beam_di
 from gui.panels import (ViewerState, draw_menu_bar, draw_left_panel,
                         draw_right_panel, draw_legend, draw_node_info,
                         draw_model_browser_windows, draw_status_strip,
-                        draw_contour_toolbar, draw_beam_diagram_panel)
+                        draw_contour_toolbar, draw_beam_diagram_panel,
+                        draw_log_window, draw_op2_summary_window,
+                        _SHELL_ELEM_STRESS_RTS, _SHELL_NODAL_STRESS_RTS)
 
 def _win_addr(w): return ctypes.cast(w, ctypes.c_void_p).value
 
@@ -116,6 +127,13 @@ def _draw_axis_imgui(view_matrix, win_w, win_h, size=70, margin=14, right_panel_
 
 def _beam_section_cdef_dims(prop):
     sec = getattr(prop, 'section', None) if prop is not None else None
+    ptype = str(getattr(prop, 'type', '')).upper()
+    if ptype == 'PROD' and prop.params:
+        area = float(prop.params.get('f3', 0.0) or 0.0)
+        if area > 1e-30:
+            d = np.sqrt(4.0 * area / np.pi)
+            return d, d, 'CIRCLE'
+        return None
     if sec is None:
         return None
     shp = str(getattr(sec, 'shape', '')).upper()
@@ -129,6 +147,9 @@ def _beam_section_cdef_dims(prop):
         return float(dims[0]), float(dims[1]), shp
     if shp in ('T', 'L') and len(dims) >= 2:
         return float(dims[0]), float(dims[1]), shp
+    if shp == 'CIRCLE' and dims:
+        d = float(dims[0])
+        return d, d, shp
     b = float(getattr(sec, 'b', 0.0) or 0.0)
     h = float(getattr(sec, 'h', 0.0) or 0.0)
     if b > 1e-12 and h > 1e-12:
@@ -156,11 +177,36 @@ def _draw_beam_cdef_panel(prop, win_w, right_panel_w=255, top_offset=58):
     sy0 = y0 + 30.0
     sx1 = x1 - 24.0
     sy1 = y1 - 26.0
+    cx = 0.5 * (sx0 + sx1)
+    cy = 0.5 * (sy0 + sy1) + 4.0
+
+    # CIRCLE: draw a circle outline with C/D/E/F at top/right/bottom/left
+    if shp == 'CIRCLE':
+        radius = min((sx1 - sx0) * 0.40, (sy1 - sy0) * 0.40)
+        cvec = imgui.ImVec2(cx, cy)
+        dl.add_circle(cvec, radius, 0xFFF0F0F0, 0, 1.5)
+        # C/D/E/F at cardinal points: C=top, D=right, E=bottom, F=left
+        pts = {
+            'C': (cx, cy - radius),
+            'D': (cx + radius, cy),
+            'E': (cx, cy + radius),
+            'F': (cx - radius, cy),
+        }
+        offs = {
+            'C': (-4, -16), 'D': (6, -4),
+            'E': (-4, 4),   'F': (-14, -4),
+        }
+        for lab, pt in pts.items():
+            dl.add_circle_filled(pt, 2.8, 0xFFF0F0F0)
+            o = offs[lab]
+            dl.add_text((pt[0] + o[0], pt[1] + o[1]), 0xFFF8F8B0, lab)
+        # diameter label
+        dl.add_text((cx + radius + 4, cy - 7), 0xFFBFD0E0, f"D={_format_overlay_value(b)}")
+        return
+
     aspect = abs(b) / max(abs(h), 1e-12)
     box_w = min((sx1 - sx0) * 0.82, (sy1 - sy0) * 0.82 * max(aspect, 0.35))
     box_h = min((sy1 - sy0) * 0.70, box_w / max(aspect, 0.35))
-    cx = 0.5 * (sx0 + sx1)
-    cy = 0.5 * (sy0 + sy1) + 4.0
     rx0 = cx - box_w * 0.5
     rx1 = cx + box_w * 0.5
     ry0 = cy - box_h * 0.5
@@ -217,9 +263,16 @@ def _elem_local_frame(elem, model):
     if len(pos) < 2: return None
     pts = [pos[n].astype(np.float32) for n in elem.nodes if n in pos]
 
-    if elem.type in ('CQUAD4','CTRIA3'):
-        p0,p1 = pts[0], pts[1]
-        p3 = pts[3] if elem.type=='CQUAD4' and len(pts)>=4 else pts[2]
+    if elem.type in ('CQUAD4','CQUAD8','CTRIA3','CTRIA6'):
+        # Use corner nodes only for axes
+        if elem.type in ('CQUAD8',):
+            corner_pts = pts[:4]
+        elif elem.type in ('CTRIA6',):
+            corner_pts = pts[:3]
+        else:
+            corner_pts = pts
+        p0,p1 = corner_pts[0], corner_pts[1]
+        p3 = corner_pts[3] if len(corner_pts)>=4 else corner_pts[2]
         x1 = p1-p0; n=np.linalg.norm(x1)
         if n<1e-12: return None
         x1/=n
@@ -444,7 +497,12 @@ def _beam_hover_lines(model, elem, prop, length):
         lines.append(f"Type: {prop.type}")
         if prop.type == 'PROD':
             if 'f3' in prop.params:
-                lines.append(f"A={_format_overlay_value(float(prop.params.get('f3', 0) or 0))}")
+                area = float(prop.params.get('f3', 0) or 0)
+                lines.append(f"A={_format_overlay_value(area)}")
+                # CROD cross-section is circular — show diameter derived from area
+                if area > 1e-30:
+                    d = np.sqrt(4.0 * area / np.pi)
+                    lines.append(f"Diameter={_format_overlay_value(d)}")
             if 'f4' in prop.params:
                 lines.append(f"J={_format_overlay_value(float(prop.params.get('f4', 0) or 0))}")
         elif prop.type == 'PBAR':
@@ -1141,12 +1199,13 @@ def _in_safe_zone(sc, iw):
 def _draw_notation(model, mvp, iw, ih, ortho, state):
     import numpy as np  # must be at top to avoid UnboundLocalError
     from gui.panels import _ELEMENT_FORCE_MAP, _ELEMENT_STRESS_MAP
-    any_on = any([state.show_nodes, state.show_node_nums, state.show_elem_nums,
+    any_on = any([state.show_nodes, state.show_node_nums, state.show_elem_nums, state.show_surface_nums,
                     state.show_node_values, state.show_elem_values,
                     state.show_station_nodes,
                     state.show_constraints, state.show_reaction_forces,
                     state.show_reaction_moments, state.show_local_axes,
-                    state.show_forces, state.show_moments, state.show_pressure])
+                    state.show_forces, state.show_moments, state.show_pressure,
+                    state.show_surface_axes])
     if not any_on: return
 
     dl = imgui.get_foreground_draw_list()
@@ -1182,7 +1241,9 @@ def _draw_notation(model, mvp, iw, ih, ortho, state):
 
     if state.show_nodes or state.show_node_nums:
         for nid, node in model.nodes.items():
-            sc = _project(_def_xyz(nid), mvp, iw, ih, ortho)
+            xyz = _def_xyz(nid)
+            if xyz is None: continue
+            sc = _project(xyz, mvp, iw, ih, ortho)
             if not _in_safe_zone(sc, iw): continue
             if state.show_nodes:
                 dl.add_circle_filled(sc, 3.0, C_N)
@@ -1238,8 +1299,29 @@ def _draw_notation(model, mvp, iw, ih, ortho, state):
             nav = _force_nodal_components(state)
             base = _ELEMENT_FORCE_MAP.get(rt, rt)
             node_vals = {nid: float(vals.get(base, 0.0)) for nid, vals in nav.items()}
+        elif rt.startswith('gpf_') and sc_k in state.results._gp_forces:
+            gpf = state.gp_force_components()
+            gpf_attr_map = {'gpf_nxx':'nxx','gpf_nyy':'nyy','gpf_nxy':'nxy',
+                            'gpf_mxx':'mxx','gpf_myy':'myy','gpf_mxy':'mxy',
+                            'gpf_qx':'qx','gpf_qy':'qy'}
+            attr = gpf_attr_map.get(rt, 'nxx')
+            node_vals = {nid: float(vals.get(attr, 0.0)) for nid, vals in gpf.items()}
+        elif rt.startswith('gp_') and sc_k in state.results.gp_stresses:
+            # Parse fiber from key: gp_vm_mid → mid
+            parts_rt = rt.rsplit('_', 1)
+            fib_key = parts_rt[1] if len(parts_rt) == 2 else 'mid'
+            fib_map = {'mid': 'MID', 'z1': 'Z1', 'z2': 'Z2'}
+            fib = fib_map.get(fib_key, 'MID')
+            raw = state.results.gp_stresses.get(sc_k, {})
+            gps = {nid: gp for (nid, f), gp in raw.items() if f == fib}
+            gp_map = {'gp_vm':'ovm','gp_sxx':'sxx','gp_syy':'syy',
+                      'gp_txy':'txy','gp_s1':'s1','gp_s2':'s2'}
+            attr = gp_map.get(parts_rt[0], 'ovm')
+            node_vals = {nid: float(getattr(gp, attr, 0.0)) for nid, gp in gps.items()}
         for nid, val in node_vals.items():
-            sc = _project(_def_xyz(nid), mvp, iw, ih, ortho)
+            xyz = _def_xyz(nid)
+            if xyz is None: continue
+            sc = _project(xyz, mvp, iw, ih, ortho)
             if not _in_safe_zone(sc, iw):
                 continue
             dl.add_text((sc[0]+4, sc[1]+6), 0xFFAAFFAA, _format_overlay_value(val))
@@ -1284,13 +1366,39 @@ def _draw_notation(model, mvp, iw, ih, ortho, state):
                         continue
             dl.add_text((sc[0]-len(label)*3.5, sc[1]-5), C_EN, label)
 
+    # ── Surface element numbers ─────────────────────────────────────
+    if state.show_surface_nums and model.surfaces:
+        pos = {nid: n.xyz for nid,n in model.nodes.items()}
+        C_SN = 0xFFFFFFFF   # surface num: white
+        # Collect all surface element ids and reverse map
+        surf_eids = set()
+        eid_to_surf = {}
+        for sid, (eids, _) in model.surfaces.items():
+            for e in eids:
+                surf_eids.add(e)
+                eid_to_surf[e] = sid
+        for eid, elem in model.elements.items():
+            if eid not in surf_eids:
+                continue
+            pts = [_def_xyz(n) for n in elem.nodes]
+            pts = [p for p in pts if p is not None]
+            if not pts: continue
+            # Use corner nodes for centroid
+            nc = 4 if elem.type in ('CQUAD4','CQUAD8','CHEXA') else 3
+            cen = np.mean(pts[:nc], axis=0).astype(np.float32)
+            sc = _project(cen, mvp, iw, ih, ortho)
+            if not _in_safe_zone(sc, iw): continue
+            # Show surface group ID, not element ID
+            sid = eid_to_surf.get(eid, 0)
+            dl.add_text((sc[0]-len(str(sid))*3.5, sc[1]-5), C_SN, str(sid))
+
+
     # ── Element result values ───────────────────────────────────────────
     if state.show_elem_values and state.results and state.display_mode == 'contour':
         sc_k = state.subcase
         rt = state.result_type
         elem_vals = {}
-        if rt in ('von_mises','oxx','oyy','txy','omax','omin',
-                  'von_mises_top','von_mises_bottom') and sc_k in state.results.stresses:
+        if rt in _SHELL_ELEM_STRESS_RTS and sc_k in state.results.stresses:
             st = state.results.stresses[sc_k]
             for eid, es in st.items():
                 if (hasattr(es, 'elem_id') and hasattr(es, 'values') and hasattr(es, 'von_mises')
@@ -1607,7 +1715,7 @@ def _draw_notation(model, mvp, iw, ih, ortho, state):
     # ── Local element axes ───────────────────────────────────────────
     if state.show_local_axes:
         for eid, elem in model.elements.items():
-            dim = 'frame' if elem.type in('CBAR','CBEAM','CROD') else                   'shell' if elem.type in('CQUAD4','CTRIA3') else 'solid'
+            dim = 'frame' if elem.type in('CBAR','CBEAM','CROD') else                   'shell' if elem.type in('CQUAD4','CQUAD8','CTRIA3','CTRIA6') else 'solid'
             if dim=='frame' and not state.local_axis_frame: continue
             if dim=='shell' and not state.local_axis_shell: continue
             if dim=='solid' and not state.local_axis_solid: continue
@@ -1625,12 +1733,25 @@ def _draw_notation(model, mvp, iw, ih, ortho, state):
             axis_glyphs = [(x1, 0xFF4444FF, '1'), (x2, 0xFF44CC44, '2'), (x3, 0xFFFF8833, '3')]
             if dim == 'frame':
                 axis_glyphs = [(x1, 0xFF4444FF, 'x'), (x2, 0xFF44CC44, 'z'), (x3, 0xFFFF8833, 'y')]
+            # Flip 3rd axis toward viewer (screen-up) for all element types.
+            # For frames, flip x3 (local y) so its screen projection points up.
+            # For surfaces/solids, flip x3 so it points toward the viewer.
+            x3_proj = _project(orig + x3, mvp, iw, ih, ortho)
+            x3_orig_proj = _project(orig, mvp, iw, ih, ortho)
+            if x3_proj and x3_orig_proj:
+                if x3_proj[1] > x3_orig_proj[1]:  # screen-Y increases downward
+                    x3 = -x3
             for vec, col, lbl in axis_glyphs:
                 tip_w = orig + vec * ax_scale
                 sc1 = _project(tip_w, mvp, iw, ih, ortho)
                 if sc1 is None: continue
                 _draw_arrow_2d(dl, sc0, sc1, col, 2.0, 6.0)
                 dl.add_text((sc1[0]+2, sc1[1]-5), col, lbl)
+
+    # ── Surface Axes (Z-up aligned) ────────────────────────────────────
+    if state.show_surface_axes and model.surfaces:
+        from renderer.notation import draw_surface_axes
+        draw_surface_axes(model, model.surfaces, mvp, iw, ih, ortho)
 
     # ── Point forces ─────────────────────────────────────────────────
     if state.show_forces:
@@ -1895,8 +2016,7 @@ def _draw_notation(model, mvp, iw, ih, ortho, state):
                     if sign > 0: max_pos = (sc_pt, f"{lbl} N{nid}", val)
                     else:        min_pos = (sc_pt, f"{lbl} N{nid}", val)
 
-        elif rt in ('von_mises','oxx','oyy','txy','omax','omin',
-                    'von_mises_top','von_mises_bottom') and sc_k in r.stresses:
+        elif rt in _SHELL_ELEM_STRESS_RTS and sc_k in r.stresses:
             st = r.stresses[sc_k]
             def _gv(es):
                 if rt=='von_mises': return es.von_mises
@@ -2032,6 +2152,12 @@ class MystranViewerApp:
         self._last_rebuild = 0.0
         self._navigating   = False
 
+    def _log(self, tag, msg):
+        """Append a color-tagged line to the on-screen log."""
+        self.state.log_lines.append((tag, msg))
+        if len(self.state.log_lines) > self.state.max_log_lines:
+            self.state.log_lines = self.state.log_lines[-self.state.max_log_lines:]
+
     def run(self, dat_file='', f06_file=''):
         if dat_file: self.state.dat_path=dat_file; self.state.request_load_dat=True
         if f06_file: self.state.f06_path=f06_file; self.state.request_load_f06=True
@@ -2068,9 +2194,9 @@ class MystranViewerApp:
             if not np.isfinite(scale) or scale <= 0.0:
                 return
             self.state.deform_scale = round(float(scale), 4)
-            print(f"[AutoScale] Static deform scale: {self.state.deform_scale:.4f} ({target:.4g} target / {max_u:.4g} max |u|)")
+            self._log('warn', f"[AutoScale] Static deform scale: {self.state.deform_scale:.4f} ({target:.4g} target / {max_u:.4g} max |u|)")
         except Exception as err:
-            print(f"[AutoScale] Static deform scale skipped: {err}")
+            self._log('warn', f"[AutoScale] Static deform scale skipped: {err}")
 
     def _init_window(self):
         if not glfw.init(): raise RuntimeError("GLFW init failed")
@@ -2170,6 +2296,8 @@ class MystranViewerApp:
             draw_contour_toolbar(self.state, iw, ih)
             draw_beam_diagram_panel(self.state, iw, ih)
             draw_node_info(self.state, iw, ih)
+            draw_log_window(self.state, iw, ih)
+            draw_op2_summary_window(self.state, iw, ih)
             draw_model_browser_windows(self.state, iw, ih)
             self.state.hover_status = ""
             # Both axis and notation: hidden during navigation, shown when still
@@ -2332,10 +2460,10 @@ class MystranViewerApp:
                 self.camera.set_up_axis('z')
                 self.camera._yaw = 0.0
                 self.camera._pitch = -89.0
-            print(f"[DAT] {len(self.state.model.nodes)} nodes, {len(self.state.model.elements)} elements")
+            self._log('ok', f"[DAT] {len(self.state.model.nodes)} nodes, {len(self.state.model.elements)} elements")
             self._rebuild(); self.state.request_fit=True
         except Exception as e:
-            import traceback; print(f"[DAT] Error: {e}"); traceback.print_exc()
+            import traceback; self._log('err', f"[DAT] Error: {e}")
 
     def _load_f06(self, path):
         ext = path.lower().split('.')[-1]
@@ -2348,12 +2476,12 @@ class MystranViewerApp:
             self.state.results = _lf(path)
             self.state.eigen_data = _parse_f06_eigen_data(path, self.state.results)
             sc = self.state.results.subcases
-            print(f"[F06] Subcases: {sc}")
+            self._log('head', f"[F06] Subcases: {sc}")
             if sc: self.state.subcase = sc[0]
             self._auto_static_deform_scale()
             self._rebuild()
         except Exception as e:
-            import traceback; print(f"[F06] Error: {e}"); traceback.print_exc()
+            import traceback; self._log('err', f"[F06] Error: {e}")
 
     def _fallback_to_f06_neu(self, op2_path):
         """Try companion F06 or NEU when OP2 has no useful results."""
@@ -2365,13 +2493,13 @@ class MystranViewerApp:
                                 ('.neu', '_load_neu')]:
             candidate = base + ext
             if os.path.exists(candidate):
-                print(f"[OP2] Falling back to {candidate}")
+                self._log('warn', f"[OP2] Falling back to {candidate}")
                 if ext.lower() == '.neu':
                     self._load_neu(candidate)
                 else:
                     self._load_f06_direct(candidate)
                 return
-        print("[OP2] No companion F06/NEU found - no results loaded")
+        self._log('warn', "[OP2] No companion F06/NEU found - no results loaded")
 
     def _load_f06_direct(self, path):
         """Load F06 directly without routing check."""
@@ -2380,36 +2508,36 @@ class MystranViewerApp:
             self.state.results = _lf(path)
             self.state.eigen_data = _parse_f06_eigen_data(path, self.state.results)
             sc = self.state.results.subcases
-            print(f"[F06] Subcases: {sc}")
+            self._log('head', f"[F06] Subcases: {sc}")
             if sc: self.state.subcase = sc[0]
             self._auto_static_deform_scale()
             self._rebuild()
         except Exception as e:
-            import traceback; print(f"[F06] Error: {e}"); traceback.print_exc()
+            import traceback; self._log('err', f"[F06] Error: {e}")
 
     def _load_neu(self, path):
         try:
             from parser.neu_parser import load_neu
             self.state.results = load_neu(path)
             sc = self.state.results.subcases
-            print(f"[NEU] Subcases: {sc}, disp: {len(self.state.results.displacements.get(sc[0] if sc else 1, {}))}")
+            self._log('head', f"[NEU] Subcases: {sc}, disp: {len(self.state.results.displacements.get(sc[0] if sc else 1, {}))}")
             if sc: self.state.subcase = sc[0]
             self.state.eigen_data = {}
             self._auto_static_deform_scale()
             self._rebuild()
         except Exception as e:
-            import traceback; print(f"[NEU] Error: {e}"); traceback.print_exc()
+            import traceback; self._log('err', f"[NEU] Error: {e}")
 
     def _load_op2(self, path):
         try:
             from pyNastran.op2.op2 import OP2
-            from parser.f06_parser import F06Results, DisplacementResult, ElementStress
+            from parser.f06_parser import F06Results, DisplacementResult, ElementStress, ElementGPStress
             import numpy as np
             op2 = OP2(debug=False)
             try:
                 op2.read_op2(path, combine=True)
             except Exception as read_err:
-                print(f"[OP2] Cannot parse OP2: {read_err}")
+                self._log('err', f"[OP2] Cannot parse OP2: {read_err}")
                 self._fallback_to_f06_neu(path); return
 
             results = F06Results()
@@ -2495,7 +2623,7 @@ class MystranViewerApp:
                                 'cycles': float(freq), 'omega': float(omega),
                                 'eigenvalue': float(ev_nm), 'name': ev_name}
                 except Exception as e:
-                    print(f"[OP2] eigenvalue table: {e}")
+                    self._log('warn', f"[OP2] eigenvalue table: {e}")
 
             # ── Element stresses ────────────────────────────────────
             stress = op2.op2_results.stress
@@ -2505,6 +2633,10 @@ class MystranViewerApp:
                 tbl = getattr(stress, attr, None)
                 if tbl:
                     etype = attr.split('_')[0].upper()
+                    for k, v in tbl.items():
+                        en = v.element_node
+                        n_corner = int((en[:,1] != 0).sum()) if en is not None else 0
+                        self._log('dbg', f"  [OP2] {attr} SC{k}: {len(en)} rows, {n_corner} corner, data={v.data.shape}")
                     self._read_shell_stress(tbl, etype, results)
 
             # ── Solid element stresses ─────────────────────────────
@@ -2528,14 +2660,17 @@ class MystranViewerApp:
                 tbl = getattr(force, attr, None)
                 if tbl:
                     etype = attr.split('_')[0].upper()
-                    self._read_shell_forces(tbl, etype, results)
+                    self._read_shell_forces(tbl, etype, results, self.state.model)
+
+            # ── Grid-point surface stresses (GPSTRESS) ───────────────
+            self._read_gp_surface_stress(op2, results)
 
             # ── SPC reaction forces ─────────────────────────────────
             spc_forces = getattr(op2, 'spc_forces', None)
             if spc_forces:
                 self._read_spc_forces(spc_forces, results)
             else:
-                print("[OP2] No SPCFORCES table found; reaction display unavailable for this file")
+                self._log('warn', "[OP2] No SPCFORCES table found; reaction display unavailable for this file")
 
             # ── Nodal averaged stress ───────────────────────────────
             if self.state.model:
@@ -2557,26 +2692,92 @@ class MystranViewerApp:
                     bbox_max = float((coords.max(axis=0)-coords.min(axis=0)).max())
                     # eigenvectors normalized to max=1, so bbox*0.1 = 10% deform
                     self.state.deform_scale = round(bbox_max * 0.1, 4)
-                    print(f"[OP2] Auto deform scale: {self.state.deform_scale:.4f} (10% of {bbox_max:.4f}m bbox)")
+                    self._log('ok', f"[OP2] Auto deform scale: {self.state.deform_scale:.4f} (10% of {bbox_max:.4f}m bbox)")
             else:
                 self._auto_static_deform_scale()
-            print(f"[OP2] Subcases/modes: {sc}")
+            self._log('head', f"[OP2] Subcases/modes: {sc}")
             for s in sc[:8]:
                 nd = len(results.displacements.get(s,{}))
                 ns = len(results.stresses.get(s,{}))
+                nf = len({k for k in results.forces.get(s,{}) if not str(k).startswith('_')})
+                ngp = len(results.gp_stresses.get(s,{}))
                 info = ''
                 if s in self.state.eigen_data:
                     ed = self.state.eigen_data[s]
                     info = " " + _eigen_result_summary(ed)
-                print(f"  SC{s}: {nd} disp, {ns} stresses{info}")
+                self._log('ok', f"  SC{s}: {nd} disp, {ns} stresses, {nf} forces{info}" + (f", {ngp} GPSTRESS" if ngp else ""))
 
             if sc: self.state.subcase = sc[0]
+            self._log_op2_summary(op2, results)
             self._rebuild()
             self._load_beam_diagrams(path, sc[0] if sc else 1)
         except ImportError:
-            print("[OP2] pyNastran not installed: pip install pyNastran")
+            self._log('err', "[OP2] pyNastran not installed: pip install pyNastran")
         except Exception as e:
-            import traceback; print(f"[OP2] Error: {e}"); traceback.print_exc()
+            import traceback; self._log('err', f"[OP2] Error: {e}")
+
+    def _log_op2_summary(self, op2, results):
+        """Log executive summary of all OP2 data loaded."""
+        import numpy as np
+        self._log('head', "═══ OP2 Executive Summary ═══")
+        # Displacements
+        n_disp = sum(len(v) for v in results.displacements.values())
+        self._log('ok', f"  Displacements: {n_disp} nodes across {len(results.subcases)} subcase(s)")
+        # Stress tables
+        stress = op2.op2_results.stress
+        strain = op2.op2_results.strain
+        total_stress = 0
+        for attr in ('cquad4_stress','ctria3_stress','cquadr_stress','ctriar_stress',
+                     'cquad8_stress','ctria6_stress'):
+            tbl = getattr(stress, attr, None)
+            if tbl:
+                for k, v in tbl.items():
+                    en = v.element_node
+                    n_corner = int((en[:,1] != 0).sum()) if en is not None else 0
+                    total_stress += 1
+                    self._log('dbg', f"  Stress {attr} SC{k}: {len(en)} rows ({n_corner} corner)")
+        for attr in ('chexa_stress','cpenta_stress','ctetra_stress','cpyram_stress'):
+            tbl = getattr(stress, attr, None)
+            if tbl:
+                total_stress += len(tbl)
+                self._log('dbg', f"  Stress {attr}: {len(tbl)} subcase(s)")
+        self._log('ok', f"  Stress tables: {total_stress} total")
+        # Strain tables
+        total_strain = 0
+        for attr in ('cquad4_strain','ctria3_strain','cquadr_strain',
+                     'cquad8_strain','ctria6_strain'):
+            tbl = getattr(strain, attr, None)
+            if tbl:
+                total_strain += len(tbl)
+        self._log('ok', f"  Strain tables: {total_strain} total")
+        # Force tables
+        force = op2.op2_results.force
+        total_force = 0
+        for attr in ('cquad4_force','ctria3_force','cquadr_force','ctriar_force',
+                     'cquad8_force','ctria6_force'):
+            tbl = getattr(force, attr, None)
+            if tbl:
+                for k, v in tbl.items():
+                    total_force += 1
+                    en = getattr(v, 'element_node', None)
+                    has_en = en is not None
+                    self._log('dbg', f"  Force {attr} SC{k}: element_node={'yes' if has_en else 'no'}")
+        self._log('ok', f"  Force tables: {total_force} total")
+        # GPSTRESS
+        gpss = getattr(op2, 'grid_point_surface_stresses', None)
+        if gpss:
+            total_gp = sum(len(v.node_element) for v in gpss.values())
+            self._log('ok', f"  GPSTRESS: {total_gp} entries across {len(gpss)} table(s)")
+        else:
+            self._log('warn', "  GPSTRESS: none")
+        # SPC forces
+        spc = getattr(op2, 'spc_forces', None)
+        if spc:
+            total_spc = sum(len(v.node_gridtype) for v in spc.values())
+            self._log('ok', f"  SPC forces: {total_spc} nodes")
+        else:
+            self._log('warn', "  SPC forces: none")
+        self._log('head', "═══ End Summary ═══")
 
     def _read_disp_table(self, res, isc, results):
         from parser.f06_parser import DisplacementResult
@@ -2605,7 +2806,41 @@ class MystranViewerApp:
                     'rz': float(data[i, 5]),
                 }
             if len(node_ids):
-                print(f"  [SPCForce] SC{isc}: {len(node_ids)} nodes")
+                self._log('ok', f"  [SPCForce] SC{isc}: {len(node_ids)} nodes")
+
+    def _read_gp_surface_stress(self, op2, results):
+        """Read OP2 grid_point_surface_stresses into results.gp_stresses."""
+        gpss = getattr(op2, 'grid_point_surface_stresses', None)
+        if not gpss:
+            self._log('warn', "  [GPSTRESS] no grid_point_surface_stresses table in OP2")
+            return
+        found = 0
+        for isubcase, res in gpss.items():
+            sc = isubcase[0] if isinstance(isubcase, tuple) else isubcase
+            if sc not in results.gp_stresses:
+                results.gp_stresses[sc] = {}
+            if sc not in results.subcases:
+                results.subcases.append(sc)
+            try:
+                ne = res.node_element
+                locs = res.location
+                data = res.data[-1]
+                for i in range(data.shape[0]):
+                    nid = int(ne[i, 0])
+                    loc = locs[i].strip()
+                    row = data[i]
+                    gp = ElementGPStress(
+                        subcase=sc, node_id=nid,
+                        sxx=float(row[0]), syy=float(row[1]),
+                        txy=float(row[2]), angle=float(row[3]),
+                        s1=float(row[4]), s2=float(row[5]),
+                        s12=float(row[6]), ovm=float(row[7]),
+                    )
+                    results.gp_stresses[sc][(nid, loc)] = gp
+                    found += 1
+            except Exception as e:
+                self._log('warn', f"  [GPSTRESS] skip subcase {isubcase}: {e}")
+        self._log('ok', f"  [GPSTRESS] loaded {found} node-stress entries across {len(gpss)} subcase(s)")
 
     def _read_solid_stress(self, tbl, etype, results):
         """Read solid element stress.
@@ -2664,13 +2899,10 @@ class MystranViewerApp:
                     nid: vals['von_mises'] for nid, vals in existing_comp.items()
                 }
                 nav_vals = [vals['von_mises'] for vals in nodal_comp.values()]
-                print(f"  [Stress] {etype} SC{isc}: {len(elem_stress)} elems (centroid), "
-                      f"{len(nodal_comp)} nodes (corner avg), "
-                      f"vm=[{min(nav_vals):.3e}, {max(nav_vals):.3e}]")
+                self._log('ok', f"  [Stress] {etype} SC{isc}: {len(elem_stress)} elems (centroid), {len(nodal_comp)} nodes (corner avg), vm=[{min(nav_vals):.3e}, {max(nav_vals):.3e}]")
             elif elem_stress:
                 vms = [v.von_mises for v in elem_stress.values()]
-                print(f"  [Stress] {etype} SC{isc}: {len(elem_stress)} elems, "
-                      f"vm=[{min(vms):.3e}, {max(vms):.3e}]")
+                self._log('ok', f"  [Stress] {etype} SC{isc}: {len(elem_stress)} elems, vm=[{min(vms):.3e}, {max(vms):.3e}]")
 
     def _read_shell_stress(self, tbl, etype, results, is_strain=False):
         """Read shell stress/strain and preserve raw corner contributions."""
@@ -2731,7 +2963,17 @@ class MystranViewerApp:
                             'oyy':  float(np.mean(vals['oyy'])),
                             'txy':  float(np.mean(vals['txy'])),
                             'omax': float(np.max(vals.get('omax',[0]))),
-                            'omin': float(np.min(vals.get('omin',[0])))},
+                            'omin': float(np.min(vals.get('omin',[0]))),
+                            'oxx_top': float(vals['oxx'][i_top]),
+                            'oxx_bottom': float(vals['oxx'][i_bot]),
+                            'oyy_top': float(vals['oyy'][i_top]),
+                            'oyy_bottom': float(vals['oyy'][i_bot]),
+                            'txy_top': float(vals['txy'][i_top]),
+                            'txy_bottom': float(vals['txy'][i_bot]),
+                            'omax_top': float(vals['omax'][i_top]),
+                            'omax_bottom': float(vals['omax'][i_bot]),
+                            'omin_top': float(vals['omin'][i_top]),
+                            'omin_bottom': float(vals['omin'][i_bot])},
                     von_mises=vm_max)
             if nodal_seen:
                 nodal_comp = {}
@@ -2766,16 +3008,15 @@ class MystranViewerApp:
             if seen:
                 sample = list(seen.values())[0]
                 avail_keys = [k for k,v in sample.items() if v]
-                print(f"  [Stress] {etype} SC{isc}: {len(seen)} elems, "
-                      f"keys={avail_keys}, "
-                      f"vm_range=[{min(v['vm'][0] for v in seen.values()):.3e}, "
-                      f"{max(v['vm'][0] for v in seen.values()):.3e}]")
+                self._log('ok', f"  [Stress] {etype} SC{isc}: {len(seen)} elems, keys={avail_keys}, vm_range=[{min(v['vm'][0] for v in seen.values()):.3e}, {max(v['vm'][0] for v in seen.values()):.3e}]")
 
-    def _read_shell_forces(self, tbl, etype, results):
+    def _read_shell_forces(self, tbl, etype, results, model=None):
         """Read OP2 shell element forces: element -> (fx,fy,fxy,mx,my,mxy,qx,qy)"""
         from parser.f06_parser import ElementForce
         import numpy as np
         force_comps = ('fx','fy','fxy','mx','my','mxy','qx','qy')
+        # Build element->nodes map from model for centroid->corner distribution
+        elem_nodes_map = {eid: elem.nodes for eid, elem in model.elements.items()} if model else {}
         for isc, res in tbl.items():
             if isc not in results.forces: results.forces[isc] = {}
             data = res.data[-1]
@@ -2801,15 +3042,29 @@ class MystranViewerApp:
                         for comp, val in comp_vals.items():
                             nodal_acc[nid][comp].append(val)
             else:
+                # element_node=None: CTRIA3 centroid force by element ID.
+                # Use model connectivity to distribute to corner nodes so nodal
+                # averaging works (otherwise CTRIA3 force nodes are always blank).
                 eids = res.element
                 for i, eid in enumerate(eids):
                     eid = int(eid); row = data[i]
+                    comp_vals = {
+                        'fx': float(row[0]), 'fy': float(row[1]), 'fxy': float(row[2]),
+                        'mx': float(row[3]), 'my': float(row[4]), 'mxy': float(row[5]),
+                        'qx': float(row[6]), 'qy': float(row[7]),
+                    }
                     results.forces[isc][eid] = ElementForce(
-                        subcase=isc, elem_id=eid, elem_type=etype,
-                        fx=float(row[0]), fy=float(row[1]), fxy=float(row[2]),
-                        mx=float(row[3]), my=float(row[4]), mxy=float(row[5]),
-                        qx=float(row[6]), qy=float(row[7]))
-                elem_count = len(eids)
+                        subcase=isc, elem_id=eid, elem_type=etype, **comp_vals)
+                    elem_count += 1
+                    # Distribute element centroid force to corner nodes via model connectivity
+                    nodes = elem_nodes_map.get(eid, [])
+                    # For CTRIA3: nodes[:3] are the 3 corner nodes
+                    corner_nids = nodes[:3] if etype in ('CTRIA3', 'CTRIAR') else nodes
+                    for nid in corner_nids:
+                        if nid not in nodal_acc:
+                            nodal_acc[nid] = {c: [] for c in force_comps}
+                        for comp, val in comp_vals.items():
+                            nodal_acc[nid][comp].append(val)
             if nodal_acc:
                 merged = {
                     nid: {comp: float(np.mean(vals)) for comp, vals in comp_map.items()}
@@ -2819,14 +3074,13 @@ class MystranViewerApp:
                 existing.update(merged)
                 results.forces[isc]['_solver_nodal_avg'] = existing
             if elem_count:
-                print(f"  [Force] {etype} SC{isc}: {elem_count} elems, "
-                      f"max|FY|={max(abs(data[:,1])):.3e} max|MX|={max(abs(data[:,3])):.3e}")
+                self._log('ok', f"  [Force] {etype} SC{isc}: {elem_count} elems, max|FY|={max(abs(data[:,1])):.3e} max|MX|={max(abs(data[:,3])):.3e}")
 
     def _compute_nodal_avg(self, results, model):
         """Compute conservative derived nodal stress and forces."""
         import numpy as np
         elem_nodes = {eid: elem.nodes for eid,elem in model.elements.items()}
-        stress_comps = ('von_mises', 'oxx', 'oyy', 'txy', 'omax', 'omin')
+        stress_comps = ('von_mises', 'oxx', 'oyy', 'txy', 'omax', 'omin', '_vm_direct')
         avg_scope = getattr(self.state, 'averaging_scope', 'property')
         same_family = getattr(self.state, 'average_same_family', True)
         angle_limit_deg = float(getattr(self.state, 'average_angle_deg', 20.0))
@@ -2891,12 +3145,14 @@ class MystranViewerApp:
             if not elem_stress: continue
             corner_contribs = elem_stress.get('_shell_corner_contribs', {})
             computed_comp = {}
+            corner_eids = set()
             if corner_contribs:
                 for nid, contribs in corner_contribs.items():
                     fiber_buckets = {'top': [], 'bottom': []}
                     seed_sig = {'top': None, 'bottom': None}
                     seed_normal = {'top': None, 'bottom': None}
                     for c in contribs:
+                        corner_eids.add(c['eid'])
                         sig = _compat_signature(c['eid'], c.get('elem_type', ''))
                         fiber = c.get('fiber', 'top')
                         normal = _shell_normal(c['eid'])
@@ -2926,40 +3182,53 @@ class MystranViewerApp:
                     if fiber_results:
                         best_fiber = max(fiber_results, key=lambda k: fiber_results[k]['von_mises'])
                         computed_comp[nid] = fiber_results[best_fiber]
-            else:
-                if not elem_stress.get('_solver_nodal_avg_components', {}):
+            # Centroid fallback for elements WITHOUT corner data (e.g. CTRIA3,
+            # which OP2 stores as centroid-only). This must run per-element, not
+            # only when the whole subcase has no corner data — otherwise TRIA3
+            # nodes in a mixed deck (TRIA3 + CQUAD4/CQUAD8/CTRIA6) never get a
+            # nodal value and drop out of the nodal contour.
+            node_comp = {}
+            node_seed = {}
+            for eid, es in elem_stress.items():
+                if eid in corner_eids:
                     continue
-                node_comp = {}
-                node_seed = {}
-                for eid, es in elem_stress.items():
-                    if not hasattr(es,'von_mises') or _is_beam_stress_obj(es):
+                if not hasattr(es, 'von_mises') or _is_beam_stress_obj(es):
+                    continue
+                sig = _compat_signature(eid, getattr(es, 'elem_type', ''))
+                for nid in elem_nodes.get(eid, []):
+                    if nid in computed_comp:
                         continue
-                    sig = _compat_signature(eid, getattr(es, 'elem_type', ''))
-                    for nid in elem_nodes.get(eid, []):
-                        seed = node_seed.get(nid)
-                        if not _compatible(sig, seed):
-                            continue
-                        if seed is None:
-                            node_seed[nid] = sig
-                        if nid not in node_comp:
-                            node_comp[nid] = {c: [] for c in stress_comps}
-                        node_comp[nid]['oxx'].append(float(es.values.get('oxx', 0.0)))
-                        node_comp[nid]['oyy'].append(float(es.values.get('oyy', 0.0)))
-                        node_comp[nid]['txy'].append(float(es.values.get('txy', 0.0)))
-                        node_comp[nid]['omax'].append(float(es.values.get('omax', es.von_mises)))
-                        node_comp[nid]['omin'].append(float(es.values.get('omin', es.von_mises)))
-                for nid, comp_map in node_comp.items():
-                    oxx = float(np.mean(comp_map['oxx'])) if comp_map['oxx'] else 0.0
-                    oyy = float(np.mean(comp_map['oyy'])) if comp_map['oyy'] else 0.0
-                    txy = float(np.mean(comp_map['txy'])) if comp_map['txy'] else 0.0
-                    computed_comp[nid] = {
-                        'oxx': oxx,
-                        'oyy': oyy,
-                        'txy': txy,
-                        'omax': float(np.mean(comp_map['omax'])) if comp_map['omax'] else 0.0,
-                        'omin': float(np.mean(comp_map['omin'])) if comp_map['omin'] else 0.0,
-                        'von_mises': float(np.sqrt(max(0.0, oxx*oxx - oxx*oyy + oyy*oyy + 3.0*txy*txy))),
-                    }
+                    seed = node_seed.get(nid)
+                    if not _compatible(sig, seed):
+                        continue
+                    if seed is None:
+                        node_seed[nid] = sig
+                    if nid not in node_comp:
+                        node_comp[nid] = {c: [] for c in stress_comps}
+                    node_comp[nid]['oxx'].append(float(es.values.get('oxx', 0.0)))
+                    node_comp[nid]['oyy'].append(float(es.values.get('oyy', 0.0)))
+                    node_comp[nid]['txy'].append(float(es.values.get('txy', 0.0)))
+                    node_comp[nid]['omax'].append(float(es.values.get('omax', es.von_mises)))
+                    node_comp[nid]['omin'].append(float(es.values.get('omin', es.von_mises)))
+                    node_comp[nid]['_vm_direct'].append(float(es.von_mises))
+            for nid, comp_map in node_comp.items():
+                oxx = float(np.mean(comp_map['oxx'])) if comp_map['oxx'] else 0.0
+                oyy = float(np.mean(comp_map['oyy'])) if comp_map['oyy'] else 0.0
+                txy = float(np.mean(comp_map['txy'])) if comp_map['txy'] else 0.0
+                # Prefer direct von_mises from element (correct for pure-bending CTRIA3
+                # where mean(oxx)=mean(oyy)=0 but omax/omin are non-zero).
+                if comp_map['_vm_direct']:
+                    vm = float(np.mean(comp_map['_vm_direct']))
+                else:
+                    vm = float(np.sqrt(max(0.0, oxx*oxx - oxx*oyy + oyy*oyy + 3.0*txy*txy)))
+                computed_comp[nid] = {
+                    'oxx': oxx,
+                    'oyy': oyy,
+                    'txy': txy,
+                    'omax': float(np.mean(comp_map['omax'])) if comp_map['omax'] else 0.0,
+                    'omin': float(np.mean(comp_map['omin'])) if comp_map['omin'] else 0.0,
+                    'von_mises': vm,
+                }
             existing_comp = results.stresses[isc].get('_derived_nodal_avg_components', {})
             for nid, vals in computed_comp.items():
                 existing_comp.setdefault(nid, vals)
@@ -2968,8 +3237,7 @@ class MystranViewerApp:
             results.stresses[isc]['_derived_nodal_avg'] = nodal_avg
             if existing_comp:
                 avg_vals = [vals['von_mises'] for vals in existing_comp.values()]
-                print(f"  [Derived Nodal Stress] SC{isc}: {len(nodal_avg)} nodes, "
-                      f"vm=[{min(avg_vals):.3e}, {max(avg_vals):.3e}]")
+                self._log('ok', f"  [Derived Nodal Stress] SC{isc}: {len(nodal_avg)} nodes, vm=[{min(avg_vals):.3e}, {max(avg_vals):.3e}]")
 
         # ── Force nodal avg ─────────────────────────────────────────
         force_comps = ('fx','fy','fxy','mx','my','mxy','qx','qy')
@@ -3001,8 +3269,7 @@ class MystranViewerApp:
             results.forces[isc]['_derived_nodal_avg'] = existing
             if existing:
                 mx_vals = [v['mx'] for v in existing.values()]
-                print(f"  [Derived Nodal Force] SC{isc}: {len(nodal_force_avg)} nodes, "
-                      f"MX=[{min(mx_vals):.3e}, {max(mx_vals):.3e}]")
+                self._log('ok', f"  [Derived Nodal Force] SC{isc}: {len(nodal_force_avg)} nodes, MX=[{min(mx_vals):.3e}, {max(mx_vals):.3e}]")
 
 
     def _load_beam_diagrams(self, op2_path, subcase=1):
@@ -3031,6 +3298,10 @@ class MystranViewerApp:
             if (self.state.beam_source_path and self.state.display_mode in ('beam', 'beam_v2') and
                     self.state.beam_loaded_subcase != self.state.subcase):
                 self._load_beam_diagrams(self.state.beam_source_path, self.state.subcase)
+            surf_eids = set()
+            if self.state.model and self.state.model.surfaces:
+                for eids, _ in self.state.model.surfaces.values():
+                    surf_eids.update(eids)
             self._mesh_rnd.upload(
                 self.state.model,
                 results      = self.state.results,
@@ -3042,6 +3313,8 @@ class MystranViewerApp:
                 nodal_result_source = self.state.nodal_result_source,
                 active_spc_sid = _resolved_spc_sid(self.state),
                 beam_end_data = self._beam_rnd.beam_data if self._beam_rnd else None,
+                surf_eids = surf_eids,
+                selected_surface = self.state.selected_surface,
             )
             self._mesh_rnd.upload_undeformed(self.state.model)
         except Exception as e:

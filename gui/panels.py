@@ -1,4 +1,4 @@
-﻿"""ImGui panels for MYSTRAN Viewer."""
+"""ImGui panels for MYSTRAN Viewer."""
 
 import os
 from typing import Optional
@@ -20,6 +20,18 @@ _VIEW_PRESETS = [
     ("X-Y",   0,   0, "Top: X right, Y up"),
 ]
 
+# Shell element-stress result keys: mid (default), top, bottom fibers.
+# Every result_type that reads from results.stresses[sc] element objects must be
+# listed here, otherwise the legend / label / max-min paths fall through and the
+# colorbar silently disappears (e.g. selecting "Sxx Top").
+_SHELL_ELEM_STRESS_RTS = (
+    'von_mises', 'oxx', 'oyy', 'txy', 'omax', 'omin',
+    'von_mises_top', 'oxx_top', 'oyy_top', 'txy_top', 'omax_top', 'omin_top',
+    'von_mises_bottom', 'oxx_bottom', 'oyy_bottom', 'txy_bottom', 'omax_bottom', 'omin_bottom',
+)
+_SHELL_NODAL_STRESS_RTS = ('nodal_vm', 'noxx', 'noyy', 'ntxy', 'nomax', 'nomin')
+_SHELL_STRESS_RTS = _SHELL_ELEM_STRESS_RTS + _SHELL_NODAL_STRESS_RTS
+
 
 class ViewerState:
     def __init__(self):
@@ -35,9 +47,13 @@ class ViewerState:
         self.show_nodes:       bool = False
         self.show_node_nums:   bool = False
         self.show_elem_nums:   bool = False
+        self.show_surface_nums: bool = False
+        self.selected_surface:  int = 0
         self.show_node_values: bool = False
         self.show_elem_values: bool = False
         self.nodal_result_source: str = "solver_first"
+        self.nodal_fiber: str = "MID"  # fiber location for averaged nodal stress: "TOP", "BOTTOM", "MID"
+        self.gp_fiber: str = "MID"     # fiber location for GPSTRESS display: "Z1", "Z2", "MID"
         self.averaging_scope: str = "property"
         self.average_same_family: bool = True
         self.average_transform_shell: bool = True
@@ -53,6 +69,7 @@ class ViewerState:
         self.local_axis_shell: bool = True
         self.local_axis_frame: bool = True
         self.local_axis_solid: bool = False
+        self.show_surface_axes: bool = False  # Surface Axes (Z-up aligned)
         # Loads
         self.show_forces:   bool = False
         self.show_moments:  bool = False
@@ -78,6 +95,12 @@ class ViewerState:
         self.request_export_png: bool  = False
         self.exporting_mp4: bool       = False
         self.export_progress: float    = 0.0
+        # On-screen log window
+        self.show_log: bool = False
+        self.log_lines: list = []   # [(timestamp, message), ...]
+        self.max_log_lines: int = 200
+        # OP2 executive summary window
+        self.show_summary: bool = False
         self.request_beam_rebuild:bool = False
         self.model:   Optional[MystranModel] = None
         self.results: Optional[F06Results]   = None
@@ -117,8 +140,47 @@ class ViewerState:
         return self.results.forces[self.subcase]
 
     def nodal_stress_components(self):
+        """Return nodal stress components for current subcase, filtered by selected fiber location.
+
+        The underlying element stress stores TOP/BOTTOM/MID values separately in es.values.
+        We pick the appropriate variant based on self.nodal_fiber.
+        """
         st = self._stress_store()
-        return st.get('_derived_nodal_avg_components', {})
+        fiber = self.nodal_fiber  # "TOP", "BOTTOM", or "MID"
+
+        # Build per-node dict: node_id -> {component: value}
+        # The store holds both 'solver' and 'derived' nodal averages under these keys
+        solver = st.get('_solver_nodal_avg_components', {})
+        derived = st.get('_derived_nodal_avg_components', {})
+
+        # Merge solver + derived (solver takes priority for same node)
+        merged = dict(derived)
+        merged.update(solver)
+
+        # If fiber != MID, map each component to its *_top or *_bottom variant
+        if fiber == "MID":
+            return merged
+
+        result = {}
+        for nid, comps in merged.items():
+            if not isinstance(comps, dict):
+                result[nid] = comps
+                continue
+            mapped = {}
+            for key, val in comps.items():
+                if key in ('von_mises', 'oxx', 'oyy', 'txy', 'omax', 'omin'):
+                    topo_key = f'{key}_top'
+                    bot_key = f'{key}_bottom'
+                    if fiber == "TOP" and topo_key in comps:
+                        mapped[key] = comps[topo_key]
+                    elif fiber == "BOTTOM" and bot_key in comps:
+                        mapped[key] = comps[bot_key]
+                    else:
+                        mapped[key] = val  # fall back to mid (centroid)
+                else:
+                    mapped[key] = val
+            result[nid] = mapped
+        return result
 
     def nodal_force_components(self):
         fc = self._force_store()
@@ -140,6 +202,35 @@ class ViewerState:
 
     def has_derived_nodal_force(self) -> bool:
         return bool(self._force_store().get('_derived_nodal_avg', {}))
+
+    def gp_stress_components(self):
+        """Return GP stress entries for current subcase filtered by selected fiber location.
+
+        Raw storage: results.gp_stresses[subcase][(node_id, fiber_label)] = ElementGPStress
+        fiber_label is 'Z1', 'Z2', or 'MID' from NASTRAN F06 output.
+        """
+        if self.results is None:
+            return {}
+        raw = self.results.gp_stresses.get(self.subcase, {})
+        fiber = self.gp_fiber  # "Z1", "Z2", or "MID"
+        return {nid: gp for (nid, f), gp in raw.items() if f == fiber}
+
+    def has_gp_stress(self) -> bool:
+        """True if current subcase has grid-point surface stress data."""
+        return bool(self.gp_stress_components())
+
+    def has_gp_force(self) -> bool:
+        """True if current subcase has grid-point force data (FORCES AT GRID POINTS)."""
+        if self.results is None: return False
+        return hasattr(self.results, '_gp_forces') and self.subcase in self.results._gp_forces
+
+    def gp_force_components(self):
+        """Return grid-point force dict for current subcase.
+
+        Raw storage: results._gp_forces[subcase][node_id] = {nxx,nyy,nxy,mxx,myy,mxy,qx,qy}
+        """
+        if self.results is None: return {}
+        return self.results._gp_forces.get(self.subcase, {})
 
 
 def _open_dialog(title, filters):
@@ -216,12 +307,15 @@ def _current_result_label(state: ViewerState):
         return "Total Translation"
     if rt in ('t1','t2','t3') and sc in r.displacements:
         return {'t1':'T1 (X)','t2':'T2 (Y)','t3':'T3 (Z)'}[rt]
-    if rt in ('von_mises','oxx','oyy','txy','omax','omin',
-              'von_mises_top','von_mises_bottom') and sc in r.stresses:
+    if rt in _SHELL_ELEM_STRESS_RTS and sc in r.stresses:
         base = {'von_mises':'Von Mises [Elem]','oxx':'Sxx [Elem]','oyy':'Syy [Elem]',
                 'txy':'Sxy [Elem]','omax':'S1 [Elem]','omin':'S3 [Elem]',
-                'von_mises_top':'Von Mises Top [Elem]',
-                'von_mises_bottom':'Von Mises Bottom [Elem]'}.get(rt, 'Stress [Elem]')
+                'von_mises_top':'Von Mises Top [Elem]','oxx_top':'Sxx Top [Elem]',
+                'oyy_top':'Syy Top [Elem]','txy_top':'Sxy Top [Elem]',
+                'omax_top':'S1 Top [Elem]','omin_top':'S3 Top [Elem]',
+                'von_mises_bottom':'Von Mises Bottom [Elem]','oxx_bottom':'Sxx Bottom [Elem]',
+                'oyy_bottom':'Syy Bottom [Elem]','txy_bottom':'Sxy Bottom [Elem]',
+                'omax_bottom':'S1 Bottom [Elem]','omin_bottom':'S3 Bottom [Elem]'}.get(rt, 'Stress [Elem]')
         if not state.has_corner_stress_data():
             base += ' [center only]'
         return base
@@ -253,6 +347,23 @@ def _current_result_label(state: ViewerState):
         base_rt = {'nfx':'FX','nfy':'FY','nfxy':'FXY','nmx':'MX','nmy':'MY',
                    'nmxy':'MXY','nqx':'QX','nqy':'QY'}.get(rt, rt.upper())
         return base_rt + _nodal_source_title(state, 'force')
+    # GP stress: keys like gp_vm_mid, gp_sxx_z1, gp_syy_z2
+    if rt.startswith('gp_') and hasattr(r, 'gp_stresses') and sc in r.gp_stresses:
+        parts = rt.rsplit('_', 1)
+        comp_key = parts[0].replace('gp_', '')
+        fib_key = parts[1] if len(parts) == 2 else 'mid'
+        comp_map = {'vm':'SVonMises','sxx':'Sxx','syy':'Syy','txy':'Sxy','s1':'S1','s2':'S2'}
+        fib_map = {'z1':'Top','z2':'Bot','mid':'Mid'}
+        comp = comp_map.get(comp_key, comp_key.upper())
+        fib = fib_map.get(fib_key, fib_key)
+        return f"GP Stress - {comp} {fib}"
+    # GP force: keys like gpf_nxx, gpf_myy
+    if rt.startswith('gpf_') and hasattr(r, '_gp_forces') and sc in r._gp_forces:
+        attr = rt.replace('gpf_', '')
+        comp_map = {'nxx':'Nxx','nyy':'Nyy','nxy':'Nxy',
+                    'mxx':'Mxx','myy':'Myy','mxy':'Mxy','qx':'Qx','qy':'Qy'}
+        comp = comp_map.get(attr, attr.upper())
+        return f"GP Force - {comp}"
     return None
 
 
@@ -267,9 +378,7 @@ def _status_context_label(state: ViewerState):
     if spc_sid > 0:
         bits.append(f"BC {spc_sid}")
     if (state.display_mode == 'contour'
-            and state.result_type in ('von_mises','oxx','oyy','txy','omax','omin',
-                                      'von_mises_top','von_mises_bottom',
-                                      'nodal_vm','noxx','noyy','ntxy','nomax','nomin')
+            and state.result_type in _SHELL_STRESS_RTS
             and state.model is not None):
         e1d, e2d, e3d = state.model.elements_by_dim()
         if e1d and (e2d or e3d):
@@ -418,14 +527,39 @@ def _draw_model_tree(state: ViewerState):
                 state.selected_material_id = mid
                 state.show_material_window = True
         imgui.tree_pop()
+
+    if model.surfaces and imgui.tree_node(f"Surfaces ({len(model.surfaces)})##surfs"):
+        for sid in sorted(model.surfaces):
+            eids, _ = model.surfaces[sid]
+            label = f"SID {sid}  ({len(eids)} shells)"
+            imgui.selectable(label, state.selected_surface == sid)
+            if imgui.is_item_clicked(imgui.MouseButton_.left):
+                state.selected_surface = sid
+                state.request_rebuild = True
+            elif imgui.is_item_clicked(imgui.MouseButton_.right):
+                if state.selected_surface == sid:
+                    state.selected_surface = 0
+                    state.request_rebuild = True
+                elif state.selected_surface != 0:
+                    # Right-clicked a different surface while another is magenta: deselect current
+                    state.selected_surface = 0
+                    state.request_rebuild = True
+        imgui.tree_pop()
+
     if imgui.tree_node(f"Properties ({len(model.properties)})##props"):
         for pid in sorted(model.properties):
             prop = model.properties[pid]
             sec = getattr(prop, 'section', None)
-            if prop.type in ('PBAR', 'PBEAM', 'PROD'):
-                if prop.type == 'PROD':
-                    a_txt = _fmt_meta(float(prop.params.get('f3', 0) or 0)) if 'f3' in prop.params else "?"
-                    suffix = f"  A={a_txt}"
+            if prop.type in ('PBAR', 'PBEAM', 'PROD', 'CROD'):
+                if prop.type == 'PROD' or prop.type == 'CROD':
+                    A_val = float(prop.params.get('f3', 0) or 0)
+                    if prop.type == 'CROD':
+                        dia = 2 * (abs(A_val / 3.14159265) ** 0.5)
+                        a_txt = _fmt_meta(dia)
+                        suffix = f"  D={a_txt}"
+                    else:
+                        a_txt = _fmt_meta(A_val)
+                        suffix = f"  A={a_txt}"
                 else:
                     a_txt = _fmt_meta(float(prop.params.get('f3', 0) or 0)) if 'f3' in prop.params else "?"
                     suffix = f"  A={a_txt}"
@@ -476,12 +610,21 @@ def draw_model_browser_windows(state: ViewerState, width: int, height: int):
                 imgui.separator()
                 dims = list(getattr(sec, 'dims', []) or [])
                 shp = str(getattr(sec, 'shape', '')).upper()
-                if prop.type in ('PBAR', 'PBEAM', 'PROD'):
+                if prop.type in ('PBAR', 'PBEAM', 'PROD', 'CROD'):
                     if prop.type == 'PROD':
                         if 'f3' in prop.params:
                             imgui.text(f"Area   : {_fmt_meta(float(prop.params.get('f3', 0) or 0))}")
                         if 'f4' in prop.params:
                             imgui.text(f"J      : {_fmt_meta(float(prop.params.get('f4', 0) or 0))}")
+                    elif prop.type == 'CROD':
+                        A_val = prop.params.get('f3', 0) or 0
+                        try: A_val = float(A_val)
+                        except: A_val = 0.0
+                        if A_val > 0:
+                            dia = 2.0 * (abs(A_val / 3.14159265) ** 0.5)
+                            imgui.text(f"Diameter: {_fmt_meta(dia)}")
+                        else:
+                            imgui.text("Diameter: ?")
                     elif prop.type == 'PBAR':
                         if 'f3' in prop.params:
                             imgui.text(f"A      : {_fmt_meta(float(prop.params.get('f3', 0) or 0))}")
@@ -547,6 +690,8 @@ def draw_menu_bar(state: ViewerState):
             imgui.end_menu()
         if imgui.begin_menu("View"):
             if imgui.menu_item("Fit Model", "F", False)[0]: state.request_fit=True
+            _, state.show_log = imgui.menu_item("Log Window", "", state.show_log)
+            _, state.show_summary = imgui.menu_item("OP2 Summary", "", state.show_summary)
             imgui.end_menu()
         imgui.end_main_menu_bar()
     if state._dat_dialog:
@@ -594,6 +739,7 @@ def draw_left_panel(state: ViewerState, height: int):
         imgui.text(f"  1D elem:  {len(e1d)}")
         imgui.text(f"  2D elem:  {len(e2d)}")
         imgui.text(f"  3D elem:  {len(e3d)}")
+        if m.surfaces: imgui.text(f"  Surfaces:   {len(m.surfaces)}")
         imgui.text(f"  Materials:{len(m.materials)}")
         imgui.text(f"  Properties:{len(m.properties)}")
         imgui.text(f"  SPCs:     {len(m.spcs)}")
@@ -757,7 +903,8 @@ def draw_right_panel(state: ViewerState, camera, width: int, height: int):
         imgui.spacing()
         imgui.push_style_color(imgui.Col_.text,imgui.ImVec4(0.7,1.0,0.7,1.0))
         imgui.text("Result"); imgui.pop_style_color()
-        stress_types = ['von_mises','oxx','oyy','txy','omax','omin','sxc','sxd','sxe','sxf','smax','smin','stress3d']
+        stress_types = ['von_mises','oxx','oyy','txy','omax','omin','sxc','sxd','sxe','sxf','smax','smin','stress3d',
+                        'fx','fy','fxy','mx','my','mxy','qx','qy']
         disp_types   = ['displacement','t1','t2','t3']
         cur_is_stress = state.result_type in stress_types
         cur_is_disp   = state.result_type in disp_types or not cur_is_stress
@@ -853,6 +1000,8 @@ def draw_right_panel(state: ViewerState, camera, width: int, height: int):
     _,state.show_nodes       = imgui.checkbox("Nodes (dots)",       state.show_nodes)
     _,state.show_node_nums   = imgui.checkbox("Node numbers",       state.show_node_nums)
     _,state.show_elem_nums   = imgui.checkbox("Element numbers",    state.show_elem_nums)
+    if state.model and state.model.surfaces:
+        _,state.show_surface_nums = imgui.checkbox("Surface numbers",     state.show_surface_nums)
     if state.display_mode == "contour":
         _,state.show_node_values = imgui.checkbox("Node result values", state.show_node_values)
     if state.display_mode in ("contour", "beam", "beam_v2"):
@@ -877,6 +1026,7 @@ def draw_right_panel(state: ViewerState, camera, width: int, height: int):
         imgui.same_line()
         _,state.local_axis_solid = imgui.checkbox("Solid##ax", state.local_axis_solid)
         imgui.unindent(10)
+    _,state.show_surface_axes = imgui.checkbox("Show Surfaces Axes", state.show_surface_axes)
 
     imgui.spacing()
     imgui.push_style_color(imgui.Col_.text,imgui.ImVec4(0.5,0.85,1.0,1.0))
@@ -981,8 +1131,7 @@ def _draw_maxmin_markers(state, dl, bar_x, bar_y, bar_h, bar_w):
                 if dmin is not None:
                     min_loc += f"  TX={_format_legend_tick(float(dmin.t1))} TY={_format_legend_tick(float(dmin.t2))} TZ={_format_legend_tick(float(dmin.t3))}"
 
-    elif rt in ('von_mises','oxx','oyy','txy','omax','omin',
-                'von_mises_top','von_mises_bottom') and sc in r.stresses:
+    elif rt in _SHELL_ELEM_STRESS_RTS and sc in r.stresses:
         st = r.stresses[sc]
         def _gv(es):
             return es.von_mises if rt=='von_mises' else es.values.get(rt, es.von_mises)
@@ -1238,8 +1387,7 @@ def draw_legend(state: ViewerState, width: int, height: int):
         vals = [float(d.translation[comp]) for d in r.displacements[sc].values()]
         vmin,vmax = (min(vals),max(vals)) if vals else (0,1)
         label = {'t1':'T1 (X)','t2':'T2 (Y)','t3':'T3 (Z)'}[rt]
-    elif rt in ('von_mises','oxx','oyy','txy','omax','omin',
-                'von_mises_top','von_mises_bottom') and sc in r.stresses:
+    elif rt in _SHELL_ELEM_STRESS_RTS and sc in r.stresses:
         st = r.stresses[sc]
         def _gv(es):
             if rt=='von_mises': return es.von_mises
@@ -1254,9 +1402,13 @@ def draw_legend(state: ViewerState, width: int, height: int):
         vmin,vmax = (min(vals),max(vals)) if vals else (0,1)
         label = {'von_mises':'Von Mises [Elem]','oxx':'Sxx [Elem]','oyy':'Syy [Elem]','txy':'Sxy [Elem]',
                  'omax':'S1 [Elem]','omin':'S3 [Elem]',
-                 'von_mises_top':'Von Mises Top [Elem]',
-                 'von_mises_bottom':'Von Mises Bottom [Elem]'}.get(rt,'Stress [Elem]')
-    elif rt in ('nodal_vm','noxx','noyy','ntxy','nomax','nomin') and sc in r.stresses:
+                 'von_mises_top':'Von Mises Top [Elem]','oxx_top':'Sxx Top [Elem]',
+                 'oyy_top':'Syy Top [Elem]','txy_top':'Sxy Top [Elem]',
+                 'omax_top':'S1 Top [Elem]','omin_top':'S3 Top [Elem]',
+                 'von_mises_bottom':'Von Mises Bottom [Elem]','oxx_bottom':'Sxx Bottom [Elem]',
+                 'oyy_bottom':'Syy Bottom [Elem]','txy_bottom':'Sxy Bottom [Elem]',
+                 'omax_bottom':'S1 Bottom [Elem]','omin_bottom':'S3 Bottom [Elem]'}.get(rt,'Stress [Elem]')
+    elif rt in _SHELL_NODAL_STRESS_RTS and sc in r.stresses:
         nav = state.nodal_stress_components()
         if not nav: return
         base_rt = _ELEMENT_STRESS_MAP.get(rt, 'von_mises')
@@ -1289,6 +1441,40 @@ def draw_legend(state: ViewerState, width: int, height: int):
         suffix = _nodal_source_title(state, 'force') if is_nod else ' [Elem]'
         label = {'fx':'FX','fy':'FY','fxy':'FXY','mx':'MX','my':'MY',
                  'mxy':'MXY','qx':'QX','qy':'QY'}.get(base_rt, base_rt.upper()) + suffix
+    elif rt.startswith('gpf_') and hasattr(r, '_gp_forces') and sc in r._gp_forces:
+        gpf = state.gp_force_components()
+        if not gpf: return
+        gpf_attr_map = {'gpf_nxx':'nxx','gpf_nyy':'nyy','gpf_nxy':'nxy',
+                        'gpf_mxx':'mxx','gpf_myy':'myy','gpf_mxy':'mxy',
+                        'gpf_qx':'qx','gpf_qy':'qy'}
+        attr = gpf_attr_map.get(rt, 'nxx')
+        vals = [float(vals.get(attr, 0.0)) for vals in gpf.values()]
+        if not vals: return
+        vmin, vmax = min(vals), max(vals)
+        label = {'gpf_nxx':'GP Nxx','gpf_nyy':'GP Nyy','gpf_nxy':'GP Nxy',
+                 'gpf_mxx':'GP Mxx','gpf_myy':'GP Myy','gpf_mxy':'GP Mxy',
+                 'gpf_qx':'GP Qx','gpf_qy':'GP Qy'}.get(rt, rt)
+    elif rt.startswith('gp_') and sc in r.gp_stresses:
+        gps = state.gp_stress_components()  # already filtered by fiber
+        if not gps: return
+        # Parse fiber from key: gp_vm_mid → mid, gp_sxx_z1 → z1
+        parts_rt = rt.rsplit('_', 1)
+        fib_key = parts_rt[1] if len(parts_rt) == 2 else 'mid'
+        fib_map = {'mid': 'MID', 'z1': 'Z1', 'z2': 'Z2'}
+        # Filter by fiber from key
+        fib = fib_map.get(fib_key, 'MID')
+        gps = {nid: gp for (nid, f), gp in r.gp_stresses.get(sc, {}).items() if f == fib}
+        if not gps: return
+        gp_map = {'gp_vm':'ovm','gp_sxx':'sxx','gp_syy':'syy',
+                  'gp_txy':'txy','gp_s1':'s1','gp_s2':'s2'}
+        attr = gp_map.get(parts_rt[0], 'ovm')
+        vals = [float(getattr(gp, attr, 0.0)) for gp in gps.values()]
+        if not vals: return
+        vmin, vmax = min(vals), max(vals)
+        fib_label = {'Z1':'Top','Z2':'Bot','MID':'Mid'}.get(fib, fib)
+        label_base = {'gp_vm':'GP Von Mises','gp_sxx':'GP Sxx','gp_syy':'GP Syy',
+                      'gp_txy':'GP Txy','gp_s1':'GP S1','gp_s2':'GP S2'}.get(parts_rt[0], parts_rt[0])
+        label = f"{label_base} {fib_label}"
     else:
         return
 
@@ -1337,9 +1523,7 @@ def draw_legend(state: ViewerState, width: int, height: int):
     # Max/Min location (2 lines below title)
     _draw_maxmin_markers(state, dl, bar_x, bar_y, bar_h, bar_w)
     if (state.model is not None
-            and rt in ('von_mises','oxx','oyy','txy','omax','omin',
-                       'von_mises_top','von_mises_bottom',
-                       'nodal_vm','noxx','noyy','ntxy','nomax','nomin')):
+            and rt in _SHELL_STRESS_RTS):
         e1d, e2d, e3d = state.model.elements_by_dim()
         if e1d and (e2d or e3d):
             note_y = bar_y + bar_h + 62
@@ -1355,14 +1539,24 @@ _RESULTS = [
     ('t1',           'Displacement T1'),
     ('t2',           'Displacement T2'),
     ('t3',           'Displacement T3'),
-    ('von_mises',    'Stress - Von Mises'),
-    ('oxx',          'Stress - Sxx'),
-    ('oyy',          'Stress - Syy'),
-    ('txy',          'Stress - Sxy'),
-    ('omax',         'Stress - S1'),
-    ('omin',         'Stress - S3'),
-    ('von_mises_top','Stress - VM Top'),
-    ('von_mises_bottom','Stress - VM Bottom'),
+    ('von_mises',    'Shell Stress - VM'),
+    ('oxx',          'Shell Stress - Sxx'),
+    ('oyy',          'Shell Stress - Syy'),
+    ('txy',          'Shell Stress - Sxy'),
+    ('omax',         'Shell Stress - S1'),
+    ('omin',         'Shell Stress - S3'),
+    ('von_mises_top','Shell Stress - VM Top'),
+    ('oxx_top',      'Shell Stress - Sxx Top'),
+    ('oyy_top',      'Shell Stress - Syy Top'),
+    ('txy_top',      'Shell Stress - Sxy Top'),
+    ('omax_top',     'Shell Stress - S1 Top'),
+    ('omin_top',     'Shell Stress - S3 Top'),
+    ('von_mises_bottom','Shell Stress - VM Bottom'),
+    ('oxx_bottom',   'Shell Stress - Sxx Bottom'),
+    ('oyy_bottom',   'Shell Stress - Syy Bottom'),
+    ('txy_bottom',   'Shell Stress - Sxy Bottom'),
+    ('omax_bottom',  'Shell Stress - S1 Bottom'),
+    ('omin_bottom',  'Shell Stress - S3 Bottom'),
     ('sxc',          'Beam Stress C'),
     ('sxd',          'Beam Stress D'),
     ('sxe',          'Beam Stress E'),
@@ -1370,20 +1564,28 @@ _RESULTS = [
     ('smax',         'Beam Stress Smax'),
     ('smin',         'Beam Stress Smin'),
     ('stress3d',     'Beam Stress 3D'),
-    ('nodal_vm',     'Stress Nodal VM'),
-    ('noxx',         'Stress Nodal Sxx'),
-    ('noyy',         'Stress Nodal Syy'),
-    ('ntxy',         'Stress Nodal Sxy'),
-    ('nomax',        'Stress Nodal S1'),
-    ('nomin',        'Stress Nodal S3'),
-    ('fx',  'Force FX (Membrane X)'),
-    ('fy',  'Force FY (Membrane Y)'),
-    ('fxy', 'Force FXY (Shear)'),
-    ('mx',  'Force MX (Bending X)'),
-    ('my',  'Force MY (Bending Y)'),
-    ('mxy', 'Force MXY (Twist)'),
-    ('qx',  'Force QX (Shear X)'),
-    ('qy',  'Force QY (Shear Y)'),
+    ('fx',           'Shell Force FX (Element)'),
+    ('fy',           'Shell Force FY (Element)'),
+    ('fxy',          'Shell Force FXY (Element)'),
+    ('mx',           'Shell Force MX (Element)'),
+    ('my',           'Shell Force MY (Element)'),
+    ('mxy',          'Shell Force MXY (Element)'),
+    ('qx',           'Shell Force QX (Element)'),
+    ('qy',           'Shell Force QY (Element)'),
+    ('nodal_vm',     'Shell Nodal - VM'),
+    ('noxx',         'Shell Nodal - Sxx'),
+    ('noyy',         'Shell Nodal - Syy'),
+    ('ntxy',         'Shell Nodal - Sxy'),
+    ('nomax',        'Shell Nodal - S1'),
+    ('nomin',        'Shell Nodal - S3'),
+    ('fx',  'Shell Force FX (Membrane X)'),
+    ('fy',  'Shell Force FY (Membrane Y)'),
+    ('fxy', 'Shell Force FXY (Shear)'),
+    ('mx',  'Shell Force MX (Bending X)'),
+    ('my',  'Shell Force MY (Bending Y)'),
+    ('mxy', 'Shell Force MXY (Twist)'),
+    ('qx',  'Shell Force QX (Shear X)'),
+    ('qy',  'Shell Force QY (Shear Y)'),
     ('nfx', 'Force Nodal FX'),
     ('nfy', 'Force Nodal FY'),
     ('nfxy','Force Nodal FXY'),
@@ -1392,6 +1594,25 @@ _RESULTS = [
     ('nmxy','Force Nodal MXY'),
     ('nqx', 'Force Nodal QX'),
     ('nqy', 'Force Nodal QY'),
+    # GP surface stresses (grid-point, global coords) — 3 fibers × 6 components
+    ('gp_vm_mid',  'GP Stress VM Mid'),    ('gp_sxx_mid', 'GP Stress Sxx Mid'),
+    ('gp_syy_mid', 'GP Stress Syy Mid'),  ('gp_txy_mid', 'GP Stress Txy Mid'),
+    ('gp_s1_mid',  'GP Stress S1 Mid'),   ('gp_s2_mid',  'GP Stress S2 Mid'),
+    ('gp_vm_z1',   'GP Stress VM Top'),    ('gp_sxx_z1',  'GP Stress Sxx Top'),
+    ('gp_syy_z1',  'GP Stress Syy Top'),  ('gp_txy_z1',  'GP Stress Txy Top'),
+    ('gp_s1_z1',   'GP Stress S1 Top'),   ('gp_s2_z1',   'GP Stress S2 Top'),
+    ('gp_vm_z2',   'GP Stress VM Bot'),   ('gp_sxx_z2',  'GP Stress Sxx Bot'),
+    ('gp_syy_z2',  'GP Stress Syy Bot'),  ('gp_txy_z2',  'GP Stress Txy Bot'),
+    ('gp_s1_z2',   'GP Stress S1 Bot'),   ('gp_s2_z2',   'GP Stress S2 Bot'),
+    # GP nodal forces (averaged at grid points, global coords)
+    ('gpf_nxx',  'GP Force Nxx'),
+    ('gpf_nyy',  'GP Force Nyy'),
+    ('gpf_nxy',  'GP Force Nxy'),
+    ('gpf_mxx',  'GP Force Mxx'),
+    ('gpf_myy',  'GP Force Myy'),
+    ('gpf_mxy',  'GP Force Mxy'),
+    ('gpf_qx',   'GP Force Qx'),
+    ('gpf_qy',   'GP Force Qy'),
 ]
 
 _NODAL_STRESS_MAP = {
@@ -1416,7 +1637,9 @@ def _stress_nodal_components(state: ViewerState):
 
 
 def _has_nodal_stress(state: ViewerState) -> bool:
-    return bool(state.nodal_stress_components())
+    if state.nodal_stress_components():
+        return True
+    return state.has_gp_stress()
 
 
 def _has_nodal_force(state: ViewerState) -> bool:
@@ -1450,8 +1673,9 @@ def draw_contour_toolbar(state: ViewerState, width: int, height: int):
             if elem_st:
                 # Check across elements for non-zero values
                 for k in ('von_mises','oxx','oyy','txy','omax','omin',
-                          'von_mises_top','von_mises_bottom'):
-                    if any(abs(es.values.get(k,0)) > 1e-15 for es in elem_st):
+                          'von_mises_top','oxx_top','oyy_top','txy_top','omax_top','omin_top',
+                          'von_mises_bottom','oxx_bottom','oyy_bottom','txy_bottom','omax_bottom','omin_bottom'):
+                    if any(isinstance(es.values, dict) and abs(es.values.get(k, 0)) > 1e-15 for es in elem_st):
                         avail_keys.append(k)
             nav = state.nodal_stress_components()
             if nav:
@@ -1469,13 +1693,39 @@ def draw_contour_toolbar(state: ViewerState, width: int, height: int):
             fc = state.results.forces[state.subcase]
             if fc:
                 for k in ('fx','fy','fxy','mx','my','mxy','qx','qy'):
-                    if any(hasattr(v, 'values') and abs(v.values.get(k,0)) > 1e-15
-                           for v in fc.values()):
+                    found = False
+                    for v in fc.values():
+                        if hasattr(v, 'values'):
+                            vals = v.values
+                            if callable(vals):
+                                vals = vals()
+                            val = vals.get(k, 0.0) if isinstance(vals, dict) else getattr(vals, k, 0.0)
+                        else:
+                            val = getattr(v, k, 0.0)
+                        if val is not None and abs(val) > 1e-15:
+                            found = True; break
+                    if found:
                         avail_keys.append(k)
                 navf = state.nodal_force_components()
                 if navf:
                     for k in ('nfx','nfy','nfxy','nmx','nmy','nmxy','nqx','nqy'):
                         avail_keys.append(k)
+        # GP surface stresses (grid-point, global coords) — per fiber
+        if state.has_gp_stress():
+            # Check which fibers are present
+            raw_gp = state.results.gp_stresses.get(state.subcase, {})
+            fibers_present = set(f for (_, f) in raw_gp.keys())
+            for fib in fibers_present:
+                fib_key = {'Z1': 'z1', 'Z2': 'z2', 'MID': 'mid'}.get(fib, fib)
+                for k in ('gp_vm', 'gp_sxx', 'gp_syy', 'gp_txy', 'gp_s1', 'gp_s2'):
+                    full_k = f'{k}_{fib_key}'
+                    if full_k not in avail_keys:
+                        avail_keys.append(full_k)
+        # GP nodal forces (FORCES AT GRID POINTS)
+        if state.has_gp_force():
+            for k in ('gpf_nxx', 'gpf_nyy', 'gpf_nxy', 'gpf_mxx', 'gpf_myy', 'gpf_mxy', 'gpf_qx', 'gpf_qy'):
+                if k not in avail_keys:
+                    avail_keys.append(k)
         avail_keys = list(dict.fromkeys(avail_keys))
 
         res_map = dict(_RESULTS)
@@ -1520,6 +1770,50 @@ def draw_contour_toolbar(state: ViewerState, width: int, height: int):
                     if is_ntype: state.result_type = _ELEMENT_FORCE_MAP[state.result_type]
                     else:        state.result_type = _NODAL_FORCE_MAP[state.result_type]
                     rebuild = True
+            imgui.same_line()
+
+        # ── Fiber location toggle for all shell stress result types ────────
+        _all_shell_stress = _SHELL_ELEM_STRESS_RTS + _SHELL_NODAL_STRESS_RTS
+        is_gp_stress_rt = state.result_type.startswith('gp_')
+        if state.result_type in _all_shell_stress or is_gp_stress_rt:
+            if is_gp_stress_rt:
+                # Only show fibers that exist in the data
+                raw_gp = state.results.gp_stresses.get(state.subcase, {})
+                fibers_present = set(f for (_, f) in raw_gp.keys())
+                fib_opt_map = {"MID": ("MID", "mid"), "Z1": ("Z1", "z1"), "Z2": ("Z2", "z2")}
+                fiber_opts = [fib_opt_map[f] for f in ("MID", "Z1", "Z2") if f in fibers_present]
+                if not fiber_opts:
+                    fiber_opts = [("Z1", "z1")]  # fallback
+                parts_rt = state.result_type.rsplit('_', 1)
+                current_fib_key = parts_rt[1] if len(parts_rt) == 2 else 'mid'
+                fiber_label = "GP"
+            else:
+                fiber_opts = ("MID", "TOP", "BOTTOM")
+                fiber_state = state.nodal_fiber
+                fiber_label = "Fiber"
+            imgui.text(fiber_label + ":")
+            imgui.same_line()
+            for i, opt in enumerate(fiber_opts):
+                if isinstance(opt, tuple):
+                    display_label, fib_key = opt
+                    active = (current_fib_key == fib_key)
+                else:
+                    display_label = fib_key = opt
+                    active = (fiber_state == opt) if not is_gp_stress_rt else (current_fib_key == fib_key)
+                if imgui.button(display_label + ("##fb" + str(i))):
+                    if is_gp_stress_rt:
+                        fib_for_state = fib_key.upper()  # always store as Z1/Z2/MID
+                        state.gp_fiber = fib_for_state
+                        # Switch result_type to the equivalent fiber key
+                        if parts_rt[1] != fib_key:
+                            state.result_type = f"{parts_rt[0]}_{fib_key}"
+                    else:
+                        state.nodal_fiber = display_label
+                    rebuild = True
+                if active:
+                    imgui.same_line()
+                    imgui.text_colored((0.7, 0.9, 0.7, 1.0), "ON")
+                imgui.same_line()
             imgui.same_line()
 
         imgui.text("Cmap:")
@@ -1587,6 +1881,175 @@ def draw_contour_toolbar(state: ViewerState, width: int, height: int):
 def draw_beam_diagram_panel(state: ViewerState, width: int, height: int):
     """Beam internal force diagram controls."""
     return
+
+
+def draw_log_window(state: ViewerState, width: int, height: int):
+    """Scrollable log window showing what data was loaded from OP2/F06."""
+    if not state.show_log:
+        return
+    imgui.set_next_window_pos((275, height//4), imgui.Cond_.once)
+    imgui.set_next_window_size((min(620, width-280), min(320, height//2)), imgui.Cond_.once)
+    imgui.set_next_window_bg_alpha(0.92)
+    flags = (imgui.WindowFlags_.no_title_bar | imgui.WindowFlags_.no_resize |
+             imgui.WindowFlags_.no_move | imgui.WindowFlags_.horizontal_scrollbar)
+    expanded, _ = imgui.begin("Log Window##logpan", True, flags)
+    if not expanded:
+        imgui.end()
+        return
+
+    # Header row: title + Clear button
+    imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(0.4, 0.85, 1.0, 1.0))
+    imgui.text("MYSTRAN Viewer — Data Load Log")
+    imgui.pop_style_color()
+    imgui.same_line(imgui.get_window_width() - 90)
+    if imgui.button("Clear", (80, 0)):
+        state.log_lines.clear()
+    imgui.separator()
+
+    # Color-coded log lines
+    for tag, msg in state.log_lines:
+        if tag == 'err':
+            imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(1.0, 0.4, 0.4, 1.0))
+        elif tag == 'warn':
+            imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(1.0, 0.85, 0.3, 1.0))
+        elif tag == 'ok':
+            imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(0.4, 1.0, 0.5, 1.0))
+        elif tag == 'head':
+            imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(0.6, 0.9, 1.0, 1.0))
+        else:
+            imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(0.85, 0.85, 0.85, 1.0))
+        imgui.text_wrapped(msg)
+        imgui.pop_style_color()
+
+    if state.log_lines:
+        imgui.set_scroll_here(1.0)
+    imgui.end()
+
+
+def draw_op2_summary_window(state: ViewerState, width: int, height: int):
+    """Executive summary window: total load cases, stress/strain/force/GPSTRESS counts."""
+    if not state.show_summary or state.results is None:
+        return
+    imgui.set_next_window_pos((275, 80), imgui.Cond_.once)
+    imgui.set_next_window_size((min(520, width-280), min(380, height-160)), imgui.Cond_.once)
+    imgui.set_next_window_bg_alpha(0.95)
+    flags = (imgui.WindowFlags_.no_resize | imgui.WindowFlags_.no_move)
+    expanded, _ = imgui.begin("OP2 Summary##op2sum", True, flags)
+    if not expanded:
+        imgui.end()
+        return
+
+    r = state.results
+    sc = state.subcase
+
+    # ── Header ──
+    imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(0.4, 0.85, 1.0, 1.0))
+    imgui.text("OP2 Executive Summary")
+    imgui.pop_style_color()
+    imgui.separator()
+
+    # ── Load cases ──
+    imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(0.6, 0.9, 1.0, 1.0))
+    imgui.text(f"Load Cases (subcases): {len(r.subcases)}")
+    imgui.pop_style_color()
+    for s in r.subcases:
+        nd = len(r.displacements.get(s, {}))
+        imgui.text(f"  SC {s}: {nd} displacement nodes")
+    imgui.separator()
+
+    # ── Stress ──
+    total_stress = sum(
+        len({k for k, v in r.stresses.get(s, {}).items()
+             if not str(k).startswith('_') and hasattr(v, 'von_mises')})
+        for s in r.subcases
+    )
+    imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(0.4, 1.0, 0.5, 1.0))
+    imgui.text(f"Element Stress: {total_stress} elements total")
+    imgui.pop_style_color()
+    for s in r.subcases:
+        ns = len({k for k, v in r.stresses.get(s, {}).items()
+                  if not str(k).startswith('_') and hasattr(v, 'von_mises')})
+        if ns:
+            # Break down by element type
+            by_type = {}
+            for k, v in r.stresses[s].items():
+                if str(k).startswith('_') or not hasattr(v, 'von_mises'):
+                    continue
+                et = getattr(v, 'elem_type', '?')
+                by_type[et] = by_type.get(et, 0) + 1
+            type_str = ', '.join(f"{t}:{c}" for t, c in sorted(by_type.items()))
+            imgui.text(f"  SC {s}: {ns} elems ({type_str})")
+    imgui.separator()
+
+    # ── Strain ──
+    total_strain = sum(
+        len({k for k, v in r.stresses.get(s, {}).items()
+             if not str(k).startswith('_') and hasattr(v, 'von_mises')})
+        for s in r.subcases
+    )
+    # Strain is stored in same stresses dict (is_strain flag not tracked separately)
+    # We report it as a note
+    imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(0.85, 0.85, 0.3, 1.0))
+    imgui.text(f"Strain: see log for strain table details")
+    imgui.pop_style_color()
+    imgui.separator()
+
+    # ── Forces ──
+    total_force = sum(
+        len({k for k, v in r.forces.get(s, {}).items()
+             if not str(k).startswith('_') and hasattr(v, 'values')})
+        for s in r.subcases
+    )
+    imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(1.0, 0.6, 0.3, 1.0))
+    imgui.text(f"Element Force: {total_force} elements total")
+    imgui.pop_style_color()
+    for s in r.subcases:
+        nf = len({k for k, v in r.forces.get(s, {}).items()
+                  if not str(k).startswith('_') and hasattr(v, 'values')})
+        if nf:
+            by_type = {}
+            for k, v in r.forces[s].items():
+                if str(k).startswith('_') or not hasattr(v, 'values'):
+                    continue
+                et = getattr(v, 'elem_type', '?')
+                by_type[et] = by_type.get(et, 0) + 1
+            type_str = ', '.join(f"{t}:{c}" for t, c in sorted(by_type.items()))
+            imgui.text(f"  SC {s}: {nf} elems ({type_str})")
+    imgui.separator()
+
+    # ── GPSTRESS ──
+    total_gp = sum(len(r.gp_stresses.get(s, {})) for s in r.subcases)
+    imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(1.0, 0.4, 0.8, 1.0))
+    imgui.text(f"GPSTRESS: {total_gp} entries total")
+    imgui.pop_style_color()
+    for s in r.subcases:
+        ngp = len(r.gp_stresses.get(s, {}))
+        if ngp:
+            imgui.text(f"  SC {s}: {ngp} entries")
+    imgui.separator()
+
+    # ── GPFORCE ──
+    total_gpf = sum(len(r._gp_forces.get(s, {})) for s in r.subcases) if hasattr(r, '_gp_forces') else 0
+    imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(0.6, 0.8, 1.0, 1.0))
+    imgui.text(f"GPFORCE: {total_gpf} nodes total")
+    imgui.pop_style_color()
+    for s in r.subcases:
+        ngpf = len(r._gp_forces.get(s, {})) if hasattr(r, '_gp_forces') else 0
+        if ngpf:
+            imgui.text(f"  SC {s}: {ngpf} nodes")
+    imgui.separator()
+
+    # ── Nodal stress/force averages ──
+    imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(0.9, 0.9, 0.4, 1.0))
+    imgui.text("Nodal Averages (computed by viewer):")
+    imgui.pop_style_color()
+    for s in r.subcases:
+        ns = len(r.stresses.get(s, {}).get('_derived_nodal_avg_components', {}))
+        nf = len(r.forces.get(s, {}).get('_derived_nodal_avg', {}))
+        if ns or nf:
+            imgui.text(f"  SC {s}: {ns} nodal stress, {nf} nodal force")
+
+    imgui.end()
 
 
 def draw_node_info(state: ViewerState, width: int, height: int):
