@@ -1158,9 +1158,10 @@ def _parse_f06_eigen_data(path, results):
         return eigen_data
     sub_re = re.compile(r'(?:SUBCASE|OUTPUT FOR SUBCASE)\s+(\d+)', re.I)
     mode_row_re = re.compile(
-        r'^\s*(\d+)\s+(\d+)\s+([+-]?\d+\.\d+E[+-]?\d+)\s+([+-]?\d+\.\d+E[+-]?\d+)\s+([+-]?\d+\.\d+E[+-]?\d+)')
+        r'^\s*(\d+)\s+(\d+)\s+([+-]?\d+\.\d+E[+-]?\d+)\*?\s+([+-]?\d+\.\d+E[+-]?\d+)\s+([+-]?\d+\.\d+E[+-]?\d+)')
     current_sc = 1
     in_table = False
+    table_has_rows = False
     try:
         with open(path, 'r', errors='replace') as f:
             for line in f:
@@ -1169,10 +1170,12 @@ def _parse_f06_eigen_data(path, results):
                     current_sc = int(m.group(1))
                 if 'R E A L   E I G E N V A L U E S' in line:
                     in_table = True
+                    table_has_rows = False
                     continue
                 if in_table:
                     mr = mode_row_re.match(line)
                     if mr:
+                        table_has_rows = True
                         mode_num = int(mr.group(1))
                         ev_nm = float(mr.group(3))
                         cycles = float(mr.group(5))
@@ -1182,12 +1185,14 @@ def _parse_f06_eigen_data(path, results):
                         eigen_data[target_key] = {
                             'mode': mode_num,
                             'freq_hz': abs(ev_nm) if is_buckling else cycles,
-                            'eigenvalue': abs(ev_nm),
+                            'eigenvalue': ev_nm,
                             'load_factor': ev_nm,
                             'is_buckling': is_buckling,
                             'name': 'F06'
                         }
                         continue
+                    if table_has_rows and not line.strip():
+                        in_table = False
                     if line.strip().startswith('***') or 'DATA BLOCK' in line or 'PAGE' in line:
                         in_table = False
     except Exception:
@@ -2608,6 +2613,17 @@ class MystranViewerApp:
                 nids = res.node_gridtype[:, 0]
                 for mode_idx in range(res.data.shape[0]):
                     mode_key = isc * 1000 + mode_idx + 1  # unique key per mode
+                    # OUG eigenvectors carry mode metadata even without LAMA.
+                    modes = getattr(res, 'modes', [])
+                    eigs = getattr(res, 'eigns', [])
+                    cycles = getattr(res, 'mode_cycles', [])
+                    ev = float(eigs[mode_idx]) if len(eigs) > mode_idx else 0.0
+                    freq = float(cycles[mode_idx]) if len(cycles) > mode_idx else float(np.sqrt(abs(ev)) / (2 * np.pi))
+                    buckling = getattr(res, 'analysis_code', None) == 7
+                    self.state.eigen_data[mode_key] = {
+                        'mode': int(modes[mode_idx]) if len(modes) > mode_idx else mode_idx + 1,
+                        'freq_hz': freq, 'eigenvalue': ev,
+                        'load_factor': ev, 'is_buckling': buckling, 'name': 'OP2'}
                     if mode_key not in results.displacements:
                         results.displacements[mode_key] = {}
                         results.stresses[mode_key] = {}
@@ -2642,7 +2658,8 @@ class MystranViewerApp:
                     eigenvalues= list(ev_table.eigenvalues)
                     radians    = list(ev_table.radians)
                     is_buckling = ('BUCK' in str(ev_name).upper() or
-                        (eigenvalues and all(v < 0 for v in eigenvalues[:3])))
+                        any(ed.get('is_buckling') for key, ed in self.state.eigen_data.items()
+                            if key // 1000 == isc))
                     for mode_idx, (freq, omega, ev_nm) in enumerate(
                             zip(cycles, radians, eigenvalues)):
                         mode_num = mode_idx + 1
@@ -2656,7 +2673,7 @@ class MystranViewerApp:
                                 'is_buckling': True, 'name': ev_name}
                         else:
                             self.state.eigen_data[mode_key] = {
-                                'mode': mode_num, 'freq_hz': float(freq)/(2*3.14159),
+                                'mode': mode_num, 'freq_hz': float(freq),
                                 'cycles': float(freq), 'omega': float(omega),
                                 'eigenvalue': float(ev_nm), 'name': ev_name}
                 except Exception as e:
@@ -2760,7 +2777,7 @@ class MystranViewerApp:
             if sc: self.state.subcase = sc[0]
             self._log_op2_summary(op2, results)
             self._rebuild()
-            self._load_beam_diagrams(path, sc[0] if sc else 1)
+            self._load_beam_diagrams(path, sc[0] if sc else 1, op2=op2)
         except ImportError:
             self._log('err', "[OP2] pyNastran not installed: pip install pyNastran")
         except Exception as e:
@@ -3325,7 +3342,9 @@ class MystranViewerApp:
                 self._log('ok', f"  [Derived Nodal Force] SC{isc}: {len(nodal_force_avg)} nodes, MX=[{min(mx_vals):.3e}, {max(mx_vals):.3e}]")
 
 
-    def _load_beam_diagrams(self, op2_path, subcase=1):
+    def _load_beam_diagrams(self, op2_path, subcase=1, op2=None):
+        if self.state.model is not None and not _model_has_beams(self.state.model):
+            return
         try:
             if self._beam_rnd is None:
                 self._beam_rnd = BeamDiagramRenderer(
@@ -3333,7 +3352,7 @@ class MystranViewerApp:
                     self._mesh_rnd._prog_line,
                     self._mesh_rnd._prog_fill)
                 self.state.beam_diagram = self._beam_rnd
-            ok = self._beam_rnd.load_op2(op2_path, subcase)
+            ok = self._beam_rnd.load_op2(op2_path, subcase, op2=op2)
             if ok:
                 self.state.show_beam_panel = True
                 self.state.beam_source_path = op2_path

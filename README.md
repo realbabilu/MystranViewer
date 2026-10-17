@@ -28,6 +28,12 @@ python main.py model.bdf model.op2                # + results (OP2)
 python main.py model.bdf model.neu                # + results (NEU/Femap)
 ```
 
+For decks split across files, open the main `.bdf`, `.dat`, or `.nas` file.
+`INCLUDE` files (including nested includes) are loaded into the same model.
+Relative paths are resolved from the file containing each `INCLUDE`; keep the
+referenced files and folders available. Missing files and circular includes
+produce an import error.
+
 ## Features
 - Display modes: Wireframe / Hidden Line / Contour (Post)
 - Results: Displacement (T1/T2/T3/Total), Stress (Vm/Sxx/Syy/Sxy/S1/S3), Forces (Fx/Fy/Fxy/Mx/My/Mxy/Qx/Qy)

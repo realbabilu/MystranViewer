@@ -96,7 +96,7 @@ _BEAM_STRESS_KEYS = ('sxc', 'sxd', 'sxe', 'sxf', 'smax', 'smin')
 # OP2 reader
 # ---------------------------------------------------------------------------
 
-def read_beam_forces_op2(filepath: str, subcase: int = 1) -> Dict[int, BeamDiagramData]:
+def read_beam_forces_op2(filepath: str, subcase: int = 1, op2=None) -> Dict[int, BeamDiagramData]:
     """
     Read CBEAM force results from OP2 file.
     Returns dict: eid -> BeamDiagramData
@@ -106,8 +106,9 @@ def read_beam_forces_op2(filepath: str, subcase: int = 1) -> Dict[int, BeamDiagr
     except ImportError:
         raise ImportError("pyNastran required: pip install pyNastran")
 
-    op2 = OP2(debug=False)
-    op2.read_op2(filepath, combine=True)
+    if op2 is None:
+        op2 = OP2(debug=False)
+        op2.read_op2(filepath, combine=True)
 
     result = {}
 
@@ -157,7 +158,7 @@ def read_beam_forces_op2(filepath: str, subcase: int = 1) -> Dict[int, BeamDiagr
     return result
 
 
-def read_beam_stress_op2(filepath: str, subcase: int = 1) -> Dict[int, List[BeamStationData]]:
+def read_beam_stress_op2(filepath: str, subcase: int = 1, op2=None) -> Dict[int, List[BeamStationData]]:
     """
     Read CBEAM stress results from OP2 file.
     Returns dict: eid -> list[BeamStationData] with sd/nid + stress-only fields filled.
@@ -167,8 +168,9 @@ def read_beam_stress_op2(filepath: str, subcase: int = 1) -> Dict[int, List[Beam
     except ImportError:
         raise ImportError("pyNastran required: pip install pyNastran")
 
-    op2 = OP2(debug=False)
-    op2.read_op2(filepath, combine=True)
+    if op2 is None:
+        op2 = OP2(debug=False)
+        op2.read_op2(filepath, combine=True)
     stress = op2.op2_results.stress
     table_dict = getattr(stress, 'cbeam_stress', None)
     if not table_dict:
@@ -205,13 +207,14 @@ def read_beam_stress_op2(filepath: str, subcase: int = 1) -> Dict[int, List[Beam
     return result
 
 
-def beam_stress_available_op2(filepath: str, subcase: int = 1) -> bool:
+def beam_stress_available_op2(filepath: str, subcase: int = 1, op2=None) -> bool:
     try:
         from pyNastran.op2.op2 import OP2
     except ImportError:
         return False
-    op2 = OP2(debug=False)
-    op2.read_op2(filepath, combine=True)
+    if op2 is None:
+        op2 = OP2(debug=False)
+        op2.read_op2(filepath, combine=True)
     stress = op2.op2_results.stress
     candidates = [
         getattr(stress, 'cbeam_stress', None),
@@ -1181,10 +1184,10 @@ class BeamDiagramRenderer:
         self.mode       = 'station'
         self.beam_stress_available = False
 
-    def load_op2(self, filepath: str, subcase: int = 1):
-        self.beam_data = read_beam_forces_op2(filepath, subcase)
+    def load_op2(self, filepath: str, subcase: int = 1, op2=None):
+        self.beam_data = read_beam_forces_op2(filepath, subcase, op2=op2)
         try:
-            self.beam_stress_data = read_beam_stress_op2(filepath, subcase)
+            self.beam_stress_data = read_beam_stress_op2(filepath, subcase, op2=op2)
         except Exception:
             self.beam_stress_data = {}
         if self.beam_stress_data:
@@ -1200,12 +1203,12 @@ class BeamDiagramRenderer:
                     st.sxc = src.sxc; st.sxd = src.sxd; st.sxe = src.sxe; st.sxf = src.sxf
                     st.smax = src.smax; st.smin = src.smin
         try:
-            self.beam_stress_available = beam_stress_available_op2(filepath, subcase)
+            self.beam_stress_available = beam_stress_available_op2(filepath, subcase, op2=op2)
         except Exception:
             self.beam_stress_available = False
         self.active_data = dict(self.beam_data)
         self._vaos.clear()
-        print(f"[BeamDiagram] Loaded {len(self.beam_data)} beam elements")
+        print(f"[BeamDiagram] Loaded {len(self.beam_data)} beam elements with force results")
         return len(self.beam_data) > 0
 
     def upload(self, model, result_key='bm1', scale=0.0, alpha=0.45):

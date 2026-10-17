@@ -6,6 +6,8 @@ Supports: GRID, CBAR, CBEAM, CROD, CQUAD4, CQUAD8, CTRIA3, CTRIA6,
 """
 
 import numpy as np
+import re
+from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
@@ -201,14 +203,58 @@ def _is_plain_int_token(s: str) -> bool:
 # Main parser
 # ---------------------------------------------------------------------------
 
+def _read_deck_lines(filepath, stack=()):
+    """Expand INCLUDEs in place, relative to the file containing each directive."""
+    path = Path(filepath).resolve()
+    if path in stack:
+        chain = ' -> '.join(str(p) for p in (*stack, path))
+        raise ValueError(f'Circular INCLUDE reference: {chain}')
+    try:
+        raw_lines = path.read_text(errors='replace').splitlines()
+    except OSError as exc:
+        raise OSError(f'Cannot read BDF file {path} (INCLUDE chain: '
+                      f'{" -> ".join(str(p) for p in (*stack, path))}): {exc}') from exc
+
+    lines = []
+    i = 0
+    while i < len(raw_lines):
+        line = raw_lines[i].split('$', 1)[0]
+        i += 1
+        match = re.match(r'^\s*INCLUDE\b\s*,?\s*(.*)$', line, re.IGNORECASE)
+        if not match:
+            lines.append(line)
+            continue
+        value = match.group(1).strip()
+        start_line = i
+        if value[:1] in ("'", '"'):
+            quote = value[0]
+            value = value[1:]
+            while quote not in value and i < len(raw_lines):
+                continuation = raw_lines[i].split('$', 1)[0].strip()
+                i += 1
+                value += continuation
+            if quote not in value:
+                raise ValueError(f'Unterminated INCLUDE path at {path}:{start_line}')
+            value, trailing = value.split(quote, 1)
+            if trailing.strip():
+                raise ValueError(f'Invalid INCLUDE directive at {path}:{start_line}')
+        if not value:
+            raise ValueError(f'Empty INCLUDE path at {path}:{start_line}')
+        # Accept solver decks using either platform's directory separator.
+        included = Path(value.replace('\\', '/'))
+        if not included.is_absolute():
+            included = path.parent / included
+        lines.extend(_read_deck_lines(included, (*stack, path)))
+    return lines
+
+
 class DatParser:
     def __init__(self):
         self.model = MystranModel()
         self._set_members: dict = {}
 
     def parse(self, filepath: str) -> MystranModel:
-        with open(filepath, 'r', errors='replace') as f:
-            raw_lines = f.readlines()
+        raw_lines = _read_deck_lines(filepath)
 
         # Normalize + strip comments
         lines = []

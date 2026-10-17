@@ -786,6 +786,15 @@ class MeshRenderer:
         self._surf_eids = set()
 
     def _reset(self):
+        # Explicitly free GPU resources before replacing buffers on rebuild.
+        for name in ('_solid', '_wire', '_fill'):
+            for vao, vbo, _ in getattr(self, name, {}).values():
+                if vao is not None: vao.release()
+                if vbo is not None: vbo.release()
+        for name in ('_undeformed', '_spc'):
+            vao, vbo, _ = getattr(self, name, (None, None, 0))
+            if vao is not None: vao.release()
+            if vbo is not None: vbo.release()
         self._solid={'1d':(None,None,0),'2d':(None,None,0),'3d':(None,None,0)}
         self._wire ={'1d':(None,None,0),'2d':(None,None,0),'3d':(None,None,0)}
         self._fill ={'2d':(None,None,0),'3d':(None,None,0)}
@@ -814,13 +823,17 @@ class MeshRenderer:
         C_GHOST = [0.85, 0.85, 0.85]
         wv=[]; wc=[]
         dash_frac = 0.45  # fraction of segment that is drawn
+        dash_length = max(model.scale() * 0.04, 1e-12)
+        vao, vbo, _ = self._undeformed
+        if vao is not None: vao.release()
+        if vbo is not None: vbo.release()
         for eid, elem in model.elements.items():
             for va, vb in _build_edge_lines(pos, elem.nodes, elem.type):
                 # Split each edge into dash segments
                 diff = vb - va
                 L = np.linalg.norm(diff)
                 if L < 1e-9: continue
-                n_dashes = max(2, int(L / (model.scale()*0.04)))
+                n_dashes = max(2, int(L / dash_length))
                 for i in range(n_dashes):
                     t0 = i / n_dashes
                     t1 = t0 + dash_frac / n_dashes
