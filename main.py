@@ -3,6 +3,7 @@ MYSTRAN Viewer - Clean stable version
 Controls: Left drag=rotate, Right/Mid drag=pan, Scroll=zoom
           F=fit, R=reset, W=wireframe, S=solid/hidden, C=contour, O=ortho, Esc=quit
 """
+from parser.gp_volume import GP_COMPONENTS, GP_LABELS, gp_location, gp_location_label
 # Suppress numpy/Python 3.13 MINGW warnings
 import warnings
 warnings.filterwarnings('ignore', category=RuntimeWarning)
@@ -991,6 +992,11 @@ def _draw_result_hover_info(model, mvp, iw, ih, ortho, state):
                 val = es.von_mises if rt == 'von_mises' else es.values.get(rt, es.von_mises)
                 lines[0] = f"Stress {rt.upper()} element {eid}"
                 lines.append(f"{rt.upper()}={_format_overlay_value(val)}")
+            else:
+                family = f"{elem.type}{len(elem.nodes)}" if elem.type in ('CHEXA','CPENTA','CTETRA','CPYRAM') else elem.type
+                lines[0] = f"Element {eid} ({family})"
+                lines.append("Element stress unavailable in loaded results")
+                lines.append("GPSTRESS Volume is a separate nodal result")
         elif rt in ('sxc', 'sxd', 'sxe', 'sxf', 'smax', 'smin', 'stress3d'):
             diag = getattr(state, 'beam_diagram', None)
             bd = getattr(diag, 'beam_data', {}).get(eid) if diag is not None else None
@@ -1199,7 +1205,7 @@ def _in_safe_zone(sc, iw):
 def _draw_notation(model, mvp, iw, ih, ortho, state):
     import numpy as np  # must be at top to avoid UnboundLocalError
     from gui.panels import _ELEMENT_FORCE_MAP, _ELEMENT_STRESS_MAP
-    any_on = any([state.show_nodes, state.show_node_nums, state.show_elem_nums, state.show_surface_nums,
+    any_on = any([state.show_nodes, state.show_node_nums, state.show_elem_nums, state.show_surface_nums, state.show_volume_nums,
                     state.show_node_values, state.show_elem_values,
                     state.show_station_nodes,
                     state.show_constraints, state.show_reaction_forces,
@@ -1311,11 +1317,10 @@ def _draw_notation(model, mvp, iw, ih, ortho, state):
             parts_rt = rt.rsplit('_', 1)
             fib_key = parts_rt[1] if len(parts_rt) == 2 else 'mid'
             fib_map = {'mid': 'MID', 'z1': 'Z1', 'z2': 'Z2'}
-            fib = fib_map.get(fib_key, 'MID')
+            fib = fib_map.get(fib_key, fib_key.upper())
             raw = state.results.gp_stresses.get(sc_k, {})
             gps = {nid: gp for (nid, f), gp in raw.items() if f == fib}
-            gp_map = {'gp_vm':'ovm','gp_sxx':'sxx','gp_syy':'syy',
-                      'gp_txy':'txy','gp_s1':'s1','gp_s2':'s2'}
+            gp_map = GP_COMPONENTS
             attr = gp_map.get(parts_rt[0], 'ovm')
             node_vals = {nid: float(getattr(gp, attr, 0.0)) for nid, gp in gps.items()}
         for nid, val in node_vals.items():
@@ -1392,6 +1397,22 @@ def _draw_notation(model, mvp, iw, ih, ortho, state):
             sid = eid_to_surf.get(eid, 0)
             dl.add_text((sc[0]-len(str(sid))*3.5, sc[1]-5), C_SN, str(sid))
 
+
+    # ── GPSTRESS recovery volume IDs ───────────────────────────────────
+    if state.show_volume_nums:
+        from parser.gp_volume import volume_node_groups
+        for volume_id, node_ids in sorted(volume_node_groups(model, state.results, state.subcase).items()):
+            points = [_def_xyz(nid) for nid in node_ids]
+            points = [point for point in points if point is not None]
+            if not points:
+                continue
+            center = np.mean(points, axis=0).astype(np.float32)
+            screen = _project(center, mvp, iw, ih, ortho)
+            if not _in_safe_zone(screen, iw):
+                continue
+            label = f"Volume {volume_id}"
+            color = 0xFFFF44FF if state.selected_volume == volume_id else 0xFFFFFFFF
+            dl.add_text((screen[0] - len(label)*3.5, screen[1] - 5), color, label)
 
     # ── Element result values ───────────────────────────────────────────
     if state.show_elem_values and state.results and state.display_mode == 'contour':
@@ -2042,6 +2063,20 @@ def _draw_notation(model, mvp, iw, ih, ortho, state):
                     val = _gv(elem_st[eid])
                     if sign > 0: max_pos = (sc_pt, f"{lbl} E{eid}", val)
                     else:        min_pos = (sc_pt, f"{lbl} E{eid}", val)
+        elif rt.startswith('gp_'):
+            gps = state.gp_stress_components()
+            attr = GP_COMPONENTS.get(rt.rsplit('_', 1)[0], 'ovm')
+            if gps:
+                max_nid = max(gps, key=lambda n: getattr(gps[n], attr))
+                min_nid = min(gps, key=lambda n: getattr(gps[n], attr))
+                for nid, lbl, sign in [(max_nid, 'MAX', 1), (min_nid, 'MIN', -1)]:
+                    xyz = _def_xyz(nid)
+                    if xyz is None:
+                        continue
+                    point = _project(xyz, mvp, iw, ih, ortho)
+                    value = getattr(gps[nid], attr)
+                    if sign > 0: max_pos = (point, f"{lbl} N{nid}", value)
+                    else: min_pos = (point, f"{lbl} N{nid}", value)
         elif rt in ('sxc', 'sxd', 'sxe', 'sxf', 'smax', 'smin'):
             diag = getattr(state, 'beam_diagram', None)
             beam_data = getattr(diag, 'beam_data', {}) if diag is not None else {}
@@ -2445,6 +2480,8 @@ class MystranViewerApp:
     def _load_dat(self, path):
         try:
             self.state.model=load_dat(path)
+            self.state.selected_surface = 0
+            self.state.selected_volume = 0
             # Clear previous results when new model loaded
             self.state.results = None
             self.state.subcase = 1
@@ -2533,9 +2570,9 @@ class MystranViewerApp:
             from pyNastran.op2.op2 import OP2
             from parser.f06_parser import F06Results, DisplacementResult, ElementStress, ElementGPStress
             import numpy as np
-            op2 = OP2(debug=False)
             try:
-                op2.read_op2(path, combine=True)
+                from parser.op2_compat import read_op2
+                op2 = read_op2(path)
             except Exception as read_err:
                 self._log('err', f"[OP2] Cannot parse OP2: {read_err}")
                 self._fallback_to_f06_neu(path); return
@@ -2664,6 +2701,10 @@ class MystranViewerApp:
 
             # ── Grid-point surface stresses (GPSTRESS) ───────────────
             self._read_gp_surface_stress(op2, results)
+            from parser.gp_volume import read_gp_volume_stress
+            nvolume = read_gp_volume_stress(op2, results)
+            if nvolume:
+                self._log('ok', f"[GPSTRESS Volume] {nvolume} entries loaded")
 
             # ── SPC reaction forces ─────────────────────────────────
             spc_forces = getattr(op2, 'spc_forces', None)
@@ -2676,6 +2717,15 @@ class MystranViewerApp:
             if self.state.model:
                 self._compute_nodal_avg(results, self.state.model)
 
+            if self.state.model:
+                from parser.result_coverage import missing_element_stresses, element_id_ranges
+                for sc_id in results.subcases:
+                    missing = missing_element_stresses(self.state.model, results, sc_id)
+                    results.missing_element_stresses[sc_id] = missing
+                    for family, ids in missing.items():
+                        self._log('warn', f"[OP2] SC{sc_id}: no element stress records for "
+                                  f"{len(ids)} {family} elements ({element_id_ranges(ids)}). "
+                                  "GPSTRESS Volume is a separate result.")
             self.state.results = results
             # ── Summary ────────────────────────────────────────────
             has_disp = any(len(v)>0 for v in results.displacements.values())
@@ -2764,11 +2814,14 @@ class MystranViewerApp:
                     self._log('dbg', f"  Force {attr} SC{k}: element_node={'yes' if has_en else 'no'}")
         self._log('ok', f"  Force tables: {total_force} total")
         # GPSTRESS
+        volumes = results.gp_volume_cids
+        for sc, entries in volumes.items():
+            self._log('ok', f"  GPSTRESS Volume SC{sc}: {len(entries)} volumes, CID={entries}")
         gpss = getattr(op2, 'grid_point_surface_stresses', None)
         if gpss:
             total_gp = sum(len(v.node_element) for v in gpss.values())
             self._log('ok', f"  GPSTRESS: {total_gp} entries across {len(gpss)} table(s)")
-        else:
+        elif not volumes:
             self._log('warn', "  GPSTRESS: none")
         # SPC forces
         spc = getattr(op2, 'spc_forces', None)
@@ -2812,7 +2865,7 @@ class MystranViewerApp:
         """Read OP2 grid_point_surface_stresses into results.gp_stresses."""
         gpss = getattr(op2, 'grid_point_surface_stresses', None)
         if not gpss:
-            self._log('warn', "  [GPSTRESS] no grid_point_surface_stresses table in OP2")
+            self._log('dbg', "  [GPSTRESS] no surface stress table in OP2")
             return
         found = 0
         for isubcase, res in gpss.items():
@@ -3315,6 +3368,7 @@ class MystranViewerApp:
                 beam_end_data = self._beam_rnd.beam_data if self._beam_rnd else None,
                 surf_eids = surf_eids,
                 selected_surface = self.state.selected_surface,
+                selected_volume = self.state.selected_volume,
             )
             self._mesh_rnd.upload_undeformed(self.state.model)
         except Exception as e:

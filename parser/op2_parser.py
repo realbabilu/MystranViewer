@@ -27,8 +27,8 @@ class OP2Parser:
             raise ImportError(
                 "pyNastran not installed. Run: pip install pyNastran")
 
-        op2 = OP2(debug=False)
-        op2.read_op2(filepath, combine=True)
+        from parser.op2_compat import read_op2
+        op2 = read_op2(filepath)
 
         results = F06Results()
 
@@ -72,13 +72,15 @@ class OP2Parser:
 
         # 3D solids
         for etype, attr in [('CHEXA','chexa_stress'),('CPENTA','cpenta_stress'),
-                              ('CTETRA','ctetra_stress')]:
+                              ('CTETRA','ctetra_stress'), ('CPYRAM','cpyram_stress')]:
             table = getattr(stress, attr, None)
             if table:
                 self._read_solid_stress(table, results, etype)
 
         # ── Grid-point surface stresses (GPSTRESS) ───────────────────────
         self._read_gp_surface_stress(op2, results)
+        from parser.gp_volume import read_gp_volume_stress
+        read_gp_volume_stress(op2, results)
 
         print(f"[OP2] subcases={results.subcases}")
         for sc in results.subcases:

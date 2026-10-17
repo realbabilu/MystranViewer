@@ -53,7 +53,7 @@ class ElementForce:
 
 @dataclass
 class ElementGPStress:
-    """Grid-point surface stress in global coordinates (from OP2 GPSTRESS)."""
+    """Grid-point surface or volume stress in the reported output coordinate system."""
     subcase: int
     node_id: int
     sxx: float = 0.0   # normal x (global)
@@ -64,6 +64,12 @@ class ElementGPStress:
     s2: float = 0.0    # min principal
     s12: float = 0.0   # shear on principal plane
     ovm: float = 0.0   # von Mises
+
+    szz: float = 0.0
+    tyz: float = 0.0
+    txz: float = 0.0
+    s3: float = 0.0
+    pressure: float = 0.0
 
     @property
     def von_mises(self):
@@ -77,8 +83,11 @@ class F06Results:
     stresses: Dict[int, Dict[int, ElementStress]] = field(default_factory=dict)
     forces: Dict[int, Dict] = field(default_factory=dict)
     reactions: Dict[int, Dict[int, Dict[str, float]]] = field(default_factory=dict)
-    gp_stresses: Dict[int, Dict[tuple, 'ElementGPStress']] = field(default_factory=dict)  # subcase -> (node_id, fiber) -> GP stress
+    gp_stresses: Dict[int, Dict[tuple, 'ElementGPStress']] = field(default_factory=dict)  # subcase -> (node_id, Z1/Z2/MID or V<volume_id>) -> GP stress
     _gp_forces: Dict[int, Dict[int, Dict[str, float]]] = field(default_factory=dict)  # subcase -> node_id -> {nxx,nyy,nxy,mxx,myy,mxy,qx,qy}
+
+    gp_volume_cids: Dict[int, Dict[int, int]] = field(default_factory=dict)
+    missing_element_stresses: Dict[int, Dict[str, List[int]]] = field(default_factory=dict)
 
     def max_displacement(self, subcase: int) -> float:
         if subcase not in self.displacements: return 0.0

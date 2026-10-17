@@ -1,0 +1,116 @@
+{
+  "dat": "H:\\Projects\\MYSTRAN\\source\\update\\solid_benchmark\\5-001_8_SOLIDS_GPSTRESS_PENTA_REMESH_FIXED_QUADRATIC_MYSTRAN_EAS9.dat",
+  "op2": "H:\\Projects\\MYSTRAN\\nastran_test\\mystran\\quadratic_patch_audit\\5-001_PENTATYP_EAS9.OP2",
+  "reference_op2": "H:\\Projects\\MYSTRAN\\nastran_test\\5-001_GPSTRESS_BASIC\\nastran\\5-001_8_solids_gpstress_penta_remesh.op2",
+  "nodes": 590,
+  "elements": 462,
+  "gp_entries": 204,
+  "volumes": [
+    {
+      "volume": 1,
+      "grids": 47,
+      "reference_relative_difference": 0.0
+    },
+    {
+      "volume": 2,
+      "grids": 47,
+      "reference_relative_difference": 0.0
+    },
+    {
+      "volume": 3,
+      "grids": 16,
+      "reference_relative_difference": 0.22768997643474417
+    },
+    {
+      "volume": 4,
+      "grids": 16,
+      "reference_relative_difference": 0.0
+    },
+    {
+      "volume": 5,
+      "grids": 16,
+      "reference_relative_difference": 0.0
+    },
+    {
+      "volume": 6,
+      "grids": 16,
+      "reference_relative_difference": 0.0
+    },
+    {
+      "volume": 7,
+      "grids": 23,
+      "reference_relative_difference": 0.0
+    },
+    {
+      "volume": 8,
+      "grids": 23,
+      "reference_relative_difference": 0.0
+    }
+  ],
+  "app_loader_errors": [],
+  "toolbar_and_legend_cases": 89,
+  "element_stress_records": 413,
+  "raw_oes_records_by_group": {
+    "6": 7,
+    "3": 14,
+    "4": 14,
+    "1": 168,
+    "2": 168,
+    "7": 42
+  },
+  "missing_element_stresses": {
+    "CHEXA8": [
+      500001,
+      500002,
+      500003,
+      500004,
+      500005,
+      500006,
+      500007
+    ],
+    "CPYRAM13": [
+      800001,
+      800002,
+      800003,
+      800004,
+      800005,
+      800006,
+      800007,
+      800008,
+      800009,
+      800010,
+      800011,
+      800012,
+      800013,
+      800014,
+      800015,
+      800016,
+      800017,
+      800018,
+      800019,
+      800020,
+      800021,
+      800022,
+      800023,
+      800024,
+      800025,
+      800026,
+      800027,
+      800028,
+      800029,
+      800030,
+      800031,
+      800032,
+      800033,
+      800034,
+      800035,
+      800036,
+      800037,
+      800038,
+      800039,
+      800040,
+      800041,
+      800042
+    ]
+  }
+}

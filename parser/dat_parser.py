@@ -103,6 +103,8 @@ class MystranModel:
     subcase_spcs: Dict[int, int] = field(default_factory=dict)
     surfaces: Dict[int, Tuple[List[int], str]] = field(default_factory=dict)  # surface_id -> (eids, normal_dir)
 
+    volumes: Dict[int, Tuple[List[int], str]] = field(default_factory=dict)  # volume_id -> (element_ids, output system)
+
     def bbox(self) -> Tuple[np.ndarray, np.ndarray]:
         """Return (min_xyz, max_xyz) bounding box."""
         if not self.nodes:
@@ -258,6 +260,7 @@ class DatParser:
 
     def _parse_case_control(self, lines: List[str]):
         current_subcase = 1
+        volume_lines = []
         for raw in lines:
             line = raw.strip()
             if not line:
@@ -289,22 +292,46 @@ class DatParser:
                 self._parse_case_set(line)
             elif up.startswith('SURFACE'):
                 self._parse_case_surface(line)
+            elif up.startswith('VOLUME'):
+                volume_lines.append(line)
+        # Resolve after SET declarations, including forward references.
+        for line in volume_lines:
+            self._parse_case_volume(line)
 
     def _parse_case_set(self, line: str):
         """Parse SET card from case-control section: SET 6 = 51,52,..."""
-        # Format: SET, sid, =, id1, id2, ...
-        # or: SET 6 = 51,52,53
         import re
-        # Remove 'SET' keyword, parse rest
-        rest = line[3:].strip()
-        # Split on =
-        parts = re.split(r'[=,]', rest)
-        parts = [p.strip() for p in parts if p.strip()]
-        if not parts:
+        match = re.match(r'SET[\s,]+(\d+)[\s,]*=[\s,]*(.*)', line, re.I)
+        if not match:
             return
-        sid = _int(parts[0])
-        ids = [_int(p) for p in parts[1:] if _int(p) > 0]
-        self._set_members[sid] = ids
+        tokens = re.findall(r'\d+|THRU|BY', match[2].upper())
+        ids = []
+        i = 0
+        while i < len(tokens):
+            start = int(tokens[i]); i += 1
+            if i < len(tokens) and tokens[i] == 'THRU':
+                end = int(tokens[i+1]); i += 2
+                step = 1
+                if i < len(tokens) and tokens[i] == 'BY':
+                    step = int(tokens[i+1]); i += 2
+                if step <= 0:
+                    raise ValueError('Case-control SET BY must be positive')
+                ids.extend(range(start, end+1, step))
+            else:
+                ids.append(start)
+        self._set_members[int(match[1])] = list(dict.fromkeys(ids))
+
+    def _parse_case_volume(self, line):
+        """VOLUME id, SET set_id, SYSTEM BASIC (or a coordinate system ID)."""
+        import re
+        parts = [p for p in re.split(r'[\s,=]+', line.upper()) if p]
+        volume_id = _int(parts[1])
+        set_ref = next((_int(parts[i+1]) for i, token in enumerate(parts[:-1])
+                        if token == 'SET'), 0)
+        system = next((parts[i+1] for i, token in enumerate(parts[:-1])
+                       if token == 'SYSTEM'), 'BASIC')
+        if volume_id > 0 and set_ref in self._set_members:
+            self.model.volumes[volume_id] = (list(self._set_members[set_ref]), system)
 
     def _parse_case_surface(self, line: str):
         """Parse SURFACE card from case-control: SURFACE 600 SET 6 NORMAL Z"""
@@ -335,61 +362,37 @@ class DatParser:
         Join continuation lines and split into field lists.
         Handles small-field (8-char), large-field (*), and free-field (,).
         """
+        def split_line(line):
+            if ',' in line:
+                return _split_free(line)
+            if '*' in line[:8]:
+                # Column 73-80 contains a continuation label, not card data.
+                return _split_large(line)[:-1]
+            if len(line.rstrip()) > 80:
+                # Retain the viewer's supported extended single-line cards.
+                return _split_small(line)
+            padded = line.ljust(72)
+            return [padded[j:j+8].strip() for j in range(0, 72, 8)]
+
         cards = []
-        i = 0
-        while i < len(lines):
-            line = lines[i]
+        fields = None
+        for line in lines:
             if not line.strip():
-                i += 1
                 continue
-
-            is_free = ',' in line
-            is_large = line.startswith('*') or (len(line) > 0 and line[0] == '*')
-
-            if is_free:
-                fields = _split_free(line)
-            elif is_large or (len(line) >= 1 and line[0] == '*'):
-                fields = _split_large(line)
+            first = line[:8].strip()
+            is_cont = (first == '' or first.startswith(('+', '*')) or
+                       line.lstrip().startswith(','))
+            part = split_line(line)
+            if is_cont and fields is not None:
+                if ',' in line and fields[-1].startswith(('+', '*')):
+                    fields.pop()
+                fields.extend(part[1:])
             else:
-                fields = _split_small(line)
-
-            # Look ahead for continuations
-            while i + 1 < len(lines):
-                nxt = lines[i + 1]
-                if not nxt.strip():
-                    break
-                # Continuation marker: starts with + or * or has +/blank in col 0
-                is_cont_free = (',' in nxt and nxt.strip().startswith('+')) or \
-                              (nxt.strip() and nxt.strip()[0] == ',' and
-                               not nxt.strip()[1:].lstrip('+-').rstrip().isdigit())
-                is_cont_large = nxt.startswith('*')
-                is_cont_small = (len(nxt) >= 1 and nxt[0] in ('+', ' ', '\t')) and nxt.strip()
-
-                if is_cont_free or is_cont_large or is_cont_small:
-                    # Check it's not a new card
-                    # Lines starting with ',' (free-field cont) or '*' are always continuations
-                    if nxt.strip()[0] == ',' or nxt.strip()[0] == '*':
-                        pass  # always a continuation
-                    elif not nxt.strip()[0].isalpha() and nxt.strip()[0] not in ('*', '+'):
-                        break
-                    elif nxt.strip()[0].isalpha() and not nxt.strip().startswith('+'):
-                        # Could be new card - check col 0
-                        if nxt[0] != ' ' and nxt[0] != '+' and nxt[0] != '*':
-                            break
-
-                    i += 1
-                    if ',' in nxt:
-                        ext = _split_free(nxt)[1:]  # skip continuation marker
-                    elif nxt.startswith('*'):
-                        ext = _split_large(nxt)[1:]
-                    else:
-                        ext = _split_small(nxt)[1:]
-                    fields.extend(ext)
-                else:
-                    break
-
+                if fields is not None:
+                    cards.append(fields)
+                fields = part
+        if fields is not None:
             cards.append(fields)
-            i += 1
 
         return cards
 
@@ -542,28 +545,23 @@ class DatParser:
             etype = 'CTRIA6'
         self.model.elements[eid] = Element(id=eid, type=etype, nodes=ns, pid=pid)
 
+    def _parse_solid(self, etype, f, max_nodes):
+        eid = _int(f[1]); pid = _int(f[2])
+        ns = [_int(value) for value in f[3:3 + max_nodes]
+              if value.strip() and _int(value) != 0]
+        self.model.elements[eid] = Element(id=eid, type=etype, nodes=ns, pid=pid)
+
     def _parse_cpyram(self, f):
-        """CPYRAM: 5-node pyramid. Nodes 1-4=base quad, node 5=apex."""
-        try:
-            eid=_int(f[1]); pid=_int(f[2])
-            ns=[_int(f[i]) for i in range(3,8) if i<len(f) and f[i].strip()]
-            self.model.elements[eid]=Element(id=eid,type='CPYRAM',nodes=ns,pid=pid)
-        except Exception: pass
+        self._parse_solid('CPYRAM', f, 13)
 
     def _parse_chexa(self, f):
-        eid = _int(f[1]); pid = _int(f[2])
-        ns  = [_int(f[i]) for i in range(3, 11)]
-        self.model.elements[eid] = Element(id=eid, type='CHEXA', nodes=ns, pid=pid)
+        self._parse_solid('CHEXA', f, 20)
 
     def _parse_cpenta(self, f):
-        eid = _int(f[1]); pid = _int(f[2])
-        ns  = [_int(f[i]) for i in range(3, 9)]
-        self.model.elements[eid] = Element(id=eid, type='CPENTA', nodes=ns, pid=pid)
+        self._parse_solid('CPENTA', f, 15)
 
     def _parse_ctetra(self, f):
-        eid = _int(f[1]); pid = _int(f[2])
-        ns  = [_int(f[i]) for i in range(3, 7)]
-        self.model.elements[eid] = Element(id=eid, type='CTETRA', nodes=ns, pid=pid)
+        self._parse_solid('CTETRA', f, 10)
 
 
     def _parse_set(self, f):

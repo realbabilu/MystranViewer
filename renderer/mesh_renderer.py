@@ -4,6 +4,7 @@ Clean version: no module-level numpy, no alpha shader complexity.
 Wireframe = colored lines only.
 Hidden/solid = Phong-shaded solid + dark edges.
 """
+from parser.gp_volume import GP_COMPONENTS, GP_LABELS, gp_location, gp_location_label
 
 import numpy as np
 import moderngl
@@ -838,13 +839,16 @@ class MeshRenderer:
     def upload(self,model,results=None,subcase=1,display_mode='wireframe',
                result_type='displacement',cmap_name='rainbow',deform_scale=0.0,
                nodal_result_source='solver_first', active_spc_sid=0, beam_end_data=None,
-               surf_eids=None, selected_surface=0):
+               surf_eids=None, selected_surface=0, selected_volume=0):
         self._reset()
         self._surf_eids = set(surf_eids) if surf_eids else set()
         # Compute selected surface shell element ids
         self._selected_surf_eids = set()
         if selected_surface > 0 and model is not None and hasattr(model, "surfaces"):
             self._selected_surf_eids = set(model.surfaces.get(selected_surface, ([],))[0])
+        self._selected_volume_eids = set()
+        if selected_volume > 0:
+            self._selected_volume_eids = set(model.volumes.get(selected_volume, ([], 'BASIC'))[0])
         pos={}
         def _result_deform_vec(dr):
             if dr is None:
@@ -896,8 +900,7 @@ class MeshRenderer:
                 fib_key = parts_rt[1] if len(parts_rt) == 2 else 'mid'  # 'mid', 'z1', 'z2'
                 fib_map = {'mid': 'MID', 'z1': 'Z1', 'z2': 'Z2'}
                 fib = fib_map.get(fib_key, fib_key.upper())
-                gp_attr_map = {'gp_vm':'ovm','gp_sxx':'sxx','gp_syy':'syy',
-                               'gp_txy':'txy','gp_s1':'s1','gp_s2':'s2'}
+                gp_attr_map = GP_COMPONENTS
                 attr = gp_attr_map.get(base_rt, 'ovm')
                 gps = getattr(results, 'gp_stresses', {})
                 if subcase in gps:
@@ -969,7 +972,8 @@ class MeshRenderer:
                         if gp_attr:
                             gps = getattr(results, 'gp_stresses', {})
                             if subcase in gps:
-                                gpd = gps[subcase]
+                                gpd = {key: gp for key, gp in gps[subcase].items()
+                                       if not (isinstance(key, tuple) and key[1].startswith('V'))}
                                 vals = [getattr(gp, gp_attr, 0.0) for gp in gpd.values()]
                                 if vals:
                                     lo, hi = min(vals), max(vals)
@@ -1234,7 +1238,11 @@ class MeshRenderer:
                             wv['2d']+=[va,vb]; wc['2d']+=[list(C_EDGE),list(C_EDGE)]
                 continue
 
+            if eid in self._selected_volume_eids and display_mode != 'contour':
+                fc = list(C_SURF)
             if display_mode=='wireframe':
+                if eid in self._selected_volume_eids:
+                    wc2 = list(C_SURF)
                 edges = _cpyram_edges(pos,elem.nodes) if elem.type=='CPYRAM'                         else _build_edge_lines(pos,elem.nodes,elem.type)
                 for va,vb in edges: wv['3d']+=[va,vb]; wc['3d']+=[wc2,wc2]
             else:
@@ -1252,7 +1260,7 @@ class MeshRenderer:
                     for v0,v1,v2 in tris:
                         nm=_face_normal(v0,v1,v2)
                         for v in(v0,v1,v2): sv['3d'].append(v); sc['3d'].append(fc); sn['3d'].append(nm)
-                edge_c = list(C_EDGE) if display_mode=='solid' else [c*0.6 for c in fc]
+                edge_c = list(C_SURF) if eid in self._selected_volume_eids else (list(C_EDGE) if display_mode=='solid' else [c*0.6 for c in fc])
                 edges = _cpyram_edges(pos,elem.nodes) if elem.type=='CPYRAM'                         else _build_edge_lines(pos,elem.nodes,elem.type)
                 for va,vb in edges: wv['3d']+=[va,vb]; wc['3d']+=[edge_c, edge_c]
 
@@ -1309,7 +1317,7 @@ class MeshRenderer:
                 if display_mode=='contour' and eid in c_elem:
                     fill_c=list(c_elem[eid])
                 else:
-                    fill_c=list(_DIM_FILL['3d'])
+                    fill_c = list(C_SURF) if eid in self._selected_volume_eids else list(_DIM_FILL['3d'])
                 if display_mode=='contour' and eid not in c_elem and any(n in c_node for n in elem.nodes):
                     face_tris = _build_face_tris_with_nodes(pos, elem.nodes, elem.type)
                     for tri in face_tris:

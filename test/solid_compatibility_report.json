@@ -1,0 +1,196 @@
+{
+  "numpy_compat_shim": false,
+  "numpy": "1.26.4",
+  "pyNastran": "1.4.1",
+  "cases": [
+    {
+      "type": "CHEXA20",
+      "dat": "H:\\Projects\\MYSTRAN\\codex_mod\\2026-10-17\\solid_sap_comparison\\all_solids\\runs\\5-004\\24x4x2\\CHEXA20\\mystran_NEWSOLID\\model.dat",
+      "nodes": 1285,
+      "elements": 192,
+      "connectivity": [
+        20
+      ],
+      "displacements": {
+        "1": 1285,
+        "2": 1285
+      },
+      "tables": {},
+      "viewer_stress": {}
+    },
+    {
+      "type": "CHEXA8",
+      "dat": "H:\\Projects\\MYSTRAN\\codex_mod\\2026-10-17\\solid_sap_comparison\\all_solids\\runs\\5-004\\24x4x2\\CHEXA8\\mystran_NEWSOLID\\model.dat",
+      "nodes": 375,
+      "elements": 192,
+      "connectivity": [
+        8
+      ],
+      "displacements": {
+        "1": 375,
+        "2": 375
+      },
+      "tables": {},
+      "viewer_stress": {}
+    },
+    {
+      "type": "CPENTA15",
+      "dat": "H:\\Projects\\MYSTRAN\\codex_mod\\2026-10-17\\solid_sap_comparison\\all_solids\\runs\\5-004\\24x4x2\\CPENTA15\\mystran_NEWSOLID\\model.dat",
+      "nodes": 1485,
+      "elements": 384,
+      "connectivity": [
+        15
+      ],
+      "displacements": {
+        "1": 1485,
+        "2": 1485
+      },
+      "tables": {},
+      "viewer_stress": {}
+    },
+    {
+      "type": "CPYRAM13",
+      "dat": "H:\\Projects\\MYSTRAN\\codex_mod\\2026-10-17\\solid_sap_comparison\\all_solids\\runs\\5-004\\24x4x2\\CPYRAM13\\mystran_NEWSOLID\\model.dat",
+      "nodes": 3013,
+      "elements": 1152,
+      "connectivity": [
+        13
+      ],
+      "displacements": {
+        "1": 3013,
+        "2": 3013
+      },
+      "tables": {},
+      "viewer_stress": {}
+    },
+    {
+      "type": "CPYRAM5",
+      "dat": "H:\\Projects\\MYSTRAN\\codex_mod\\2026-10-17\\solid_sap_comparison\\all_solids\\runs\\5-004\\24x4x2\\CPYRAM5\\mystran_NEWSOLID\\model.dat",
+      "nodes": 567,
+      "elements": 1152,
+      "connectivity": [
+        5
+      ],
+      "displacements": {
+        "1": 567,
+        "2": 567
+      },
+      "tables": {},
+      "viewer_stress": {}
+    },
+    {
+      "type": "CTETRA10",
+      "dat": "H:\\Projects\\MYSTRAN\\codex_mod\\2026-10-17\\solid_sap_comparison\\all_solids\\runs\\5-004\\24x4x2\\CTETRA10\\mystran_NEWSOLID\\model.dat",
+      "nodes": 2205,
+      "elements": 1152,
+      "connectivity": [
+        10
+      ],
+      "displacements": {
+        "1": 2205,
+        "2": 2205
+      },
+      "tables": {},
+      "viewer_stress": {}
+    },
+    {
+      "type": "CTETRA4",
+      "dat": "H:\\Projects\\MYSTRAN\\codex_mod\\2026-10-17\\solid_sap_comparison\\all_solids\\runs\\5-004\\24x4x2\\CTETRA4\\mystran_NEWSOLID\\model.dat",
+      "nodes": 375,
+      "elements": 1152,
+      "connectivity": [
+        4
+      ],
+      "displacements": {
+        "1": 375,
+        "2": 375
+      },
+      "tables": {},
+      "viewer_stress": {}
+    },
+    {
+      "type": "CHEXA20_PATCH",
+      "dat": "H:\\Projects\\MYSTRAN\\nastran_test\\mystran\\quadratic_patch_audit\\CHEXA20_PATCH.dat",
+      "nodes": 48,
+      "elements": 7,
+      "connectivity": [
+        20
+      ],
+      "displacements": {
+        "(1, 1, 1, 0, 0, '', '')": 48
+      },
+      "tables": {
+        "chexa_stress": [
+          {
+            "subcase": "(1, 1, 1, 0, 0, '', '')",
+            "shape": [
+              1,
+              63,
+              10
+            ],
+            "centroids": 7
+          }
+        ]
+      },
+      "viewer_stress": {
+        "(1, 1, 1, 0, 0, '', '')": 7
+      }
+    },
+    {
+      "type": "CPENTA15_PATCH",
+      "dat": "H:\\Projects\\MYSTRAN\\nastran_test\\mystran\\quadratic_patch_audit\\CPENTA15_PATCH.dat",
+      "nodes": 56,
+      "elements": 14,
+      "connectivity": [
+        15
+      ],
+      "displacements": {
+        "(1, 1, 1, 0, 0, '', '')": 56
+      },
+      "tables": {
+        "cpenta_stress": [
+          {
+            "subcase": "(1, 1, 1, 0, 0, '', '')",
+            "shape": [
+              1,
+              98,
+              10
+            ],
+            "centroids": 14
+          }
+        ]
+      },
+      "viewer_stress": {
+        "(1, 1, 1, 0, 0, '', '')": 14
+      }
+    },
+    {
+      "type": "5011_NEWSOLID",
+      "dat": "H:\\Projects\\MYSTRAN\\CTETRA4_NEWSOLID_CODEX_HANDOFF_v3_20261017\\CASE_5011\\5011_NEWSOLID.dat",
+      "nodes": 242,
+      "elements": 600,
+      "connectivity": [
+        4
+      ],
+      "displacements": {
+        "1": 242
+      },
+      "tables": {
+        "ctetra_stress": [
+          {
+            "subcase": "1",
+            "shape": [
+              1,
+              3000,
+              10
+            ],
+            "centroids": 600
+          }
+        ]
+      },
+      "viewer_stress": {
+        "1": 600
+      }
+    }
+  ]
+}

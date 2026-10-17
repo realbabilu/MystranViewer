@@ -1,4 +1,5 @@
 """ImGui panels for MYSTRAN Viewer."""
+from parser.gp_volume import GP_COMPONENTS, GP_LABELS, gp_location, gp_location_label
 
 import os
 from typing import Optional
@@ -48,7 +49,9 @@ class ViewerState:
         self.show_node_nums:   bool = False
         self.show_elem_nums:   bool = False
         self.show_surface_nums: bool = False
+        self.show_volume_nums: bool = False
         self.selected_surface:  int = 0
+        self.selected_volume: int = 0
         self.show_node_values: bool = False
         self.show_elem_values: bool = False
         self.nodal_result_source: str = "solver_first"
@@ -203,6 +206,29 @@ class ViewerState:
     def has_derived_nodal_force(self) -> bool:
         return bool(self._force_store().get('_derived_nodal_avg', {}))
 
+    def has_shell_stress_fibers(self):
+        """Top/bottom locations belong to shell results, not solid elements."""
+        from parser.result_coverage import SHELL_TYPES
+        return any(getattr(es, 'elem_type', '') in SHELL_TYPES and
+                   any(key.endswith(('_top', '_bottom')) for key in getattr(es, 'values', {}))
+                   for es in self._stress_store().values() if hasattr(es, 'elem_type'))
+
+    def has_volumes(self):
+        if self.model and self.model.volumes:
+            return True
+        return bool(self.results and any(location.startswith('V') and location[1:].isdigit()
+                    for _, location in self.results.gp_stresses.get(self.subcase, {})))
+
+    def select_volume(self, volume_id):
+        self.selected_volume = volume_id
+        self.selected_surface = 0
+        self.request_rebuild = True
+        location = f'V{volume_id}'
+        if (self.result_type.startswith('gp_') and self.results and
+                any(loc == location for _, loc in self.results.gp_stresses.get(self.subcase, {}))):
+            self.gp_fiber = location
+            self.result_type = self.result_type.rsplit('_', 1)[0] + '_' + location.lower()
+
     def gp_stress_components(self):
         """Return GP stress entries for current subcase filtered by selected fiber location.
 
@@ -212,12 +238,12 @@ class ViewerState:
         if self.results is None:
             return {}
         raw = self.results.gp_stresses.get(self.subcase, {})
-        fiber = self.gp_fiber  # "Z1", "Z2", or "MID"
+        fiber = gp_location(self.result_type) if self.result_type.startswith('gp_') else self.gp_fiber
         return {nid: gp for (nid, f), gp in raw.items() if f == fiber}
 
     def has_gp_stress(self) -> bool:
-        """True if current subcase has grid-point surface stress data."""
-        return bool(self.gp_stress_components())
+        """True if current subcase has grid-point surface or volume stresses."""
+        return bool(self.results and self.results.gp_stresses.get(self.subcase, {}))
 
     def has_gp_force(self) -> bool:
         """True if current subcase has grid-point force data (FORCES AT GRID POINTS)."""
@@ -352,10 +378,10 @@ def _current_result_label(state: ViewerState):
         parts = rt.rsplit('_', 1)
         comp_key = parts[0].replace('gp_', '')
         fib_key = parts[1] if len(parts) == 2 else 'mid'
-        comp_map = {'vm':'SVonMises','sxx':'Sxx','syy':'Syy','txy':'Sxy','s1':'S1','s2':'S2'}
+        comp_map = {key[3:]: value for key, value in GP_LABELS.items()}
         fib_map = {'z1':'Top','z2':'Bot','mid':'Mid'}
         comp = comp_map.get(comp_key, comp_key.upper())
-        fib = fib_map.get(fib_key, fib_key)
+        fib = gp_location_label(r, sc, fib_key.upper())
         return f"GP Stress - {comp} {fib}"
     # GP force: keys like gpf_nxx, gpf_myy
     if rt.startswith('gpf_') and hasattr(r, '_gp_forces') and sc in r._gp_forces:
@@ -535,6 +561,7 @@ def _draw_model_tree(state: ViewerState):
             imgui.selectable(label, state.selected_surface == sid)
             if imgui.is_item_clicked(imgui.MouseButton_.left):
                 state.selected_surface = sid
+                state.selected_volume = 0
                 state.request_rebuild = True
             elif imgui.is_item_clicked(imgui.MouseButton_.right):
                 if state.selected_surface == sid:
@@ -544,6 +571,21 @@ def _draw_model_tree(state: ViewerState):
                     # Right-clicked a different surface while another is magenta: deselect current
                     state.selected_surface = 0
                     state.request_rebuild = True
+        imgui.tree_pop()
+
+    if model.volumes and imgui.tree_node(f"Volumes ({len(model.volumes)})##volumes"):
+        for volume_id in sorted(model.volumes):
+            eids, system = model.volumes[volume_id]
+            label = f"Volume {volume_id}  ({len(eids)} solids)"
+            imgui.selectable(label, state.selected_volume == volume_id)
+            if imgui.is_item_clicked(imgui.MouseButton_.left):
+                state.select_volume(volume_id)
+            elif imgui.is_item_clicked(imgui.MouseButton_.right):
+                state.selected_volume = 0
+                state.request_rebuild = True
+            if imgui.is_item_hovered():
+                imgui.set_tooltip(f"GPSTRESS Volume {volume_id}\nOutput system: {system}\n"
+                                  "Left click: highlight; right click: clear")
         imgui.tree_pop()
 
     if imgui.tree_node(f"Properties ({len(model.properties)})##props"):
@@ -740,6 +782,7 @@ def draw_left_panel(state: ViewerState, height: int):
         imgui.text(f"  2D elem:  {len(e2d)}")
         imgui.text(f"  3D elem:  {len(e3d)}")
         if m.surfaces: imgui.text(f"  Surfaces:   {len(m.surfaces)}")
+        if m.volumes: imgui.text(f"  Volumes:    {len(m.volumes)}")
         imgui.text(f"  Materials:{len(m.materials)}")
         imgui.text(f"  Properties:{len(m.properties)}")
         imgui.text(f"  SPCs:     {len(m.spcs)}")
@@ -1002,6 +1045,8 @@ def draw_right_panel(state: ViewerState, camera, width: int, height: int):
     _,state.show_elem_nums   = imgui.checkbox("Element numbers",    state.show_elem_nums)
     if state.model and state.model.surfaces:
         _,state.show_surface_nums = imgui.checkbox("Surface numbers",     state.show_surface_nums)
+    if state.has_volumes():
+        _,state.show_volume_nums = imgui.checkbox("Volume numbers", state.show_volume_nums)
     if state.display_mode == "contour":
         _,state.show_node_values = imgui.checkbox("Node result values", state.show_node_values)
     if state.display_mode in ("contour", "beam", "beam_v2"):
@@ -1155,6 +1200,15 @@ def _draw_maxmin_markers(state, dl, bar_x, bar_y, bar_h, bar_w):
             max_nid = max(nav, key=lambda k: nav[k].get(key, 0.0))
             min_nid = min(nav, key=lambda k: nav[k].get(key, 0.0))
             max_val = nav[max_nid].get(key, 0.0); min_val = nav[min_nid].get(key, 0.0)
+            max_loc = _nloc(max_nid); min_loc = _nloc(min_nid)
+
+    elif rt.startswith('gp_'):
+        gps = state.gp_stress_components()
+        attr = GP_COMPONENTS.get(rt.rsplit('_', 1)[0], 'ovm')
+        if gps:
+            max_nid = max(gps, key=lambda n: getattr(gps[n], attr))
+            min_nid = min(gps, key=lambda n: getattr(gps[n], attr))
+            max_val = getattr(gps[max_nid], attr); min_val = getattr(gps[min_nid], attr)
             max_loc = _nloc(max_nid); min_loc = _nloc(min_nid)
 
     elif hasattr(r,'forces') and sc in r.forces:
@@ -1462,18 +1516,16 @@ def draw_legend(state: ViewerState, width: int, height: int):
         fib_key = parts_rt[1] if len(parts_rt) == 2 else 'mid'
         fib_map = {'mid': 'MID', 'z1': 'Z1', 'z2': 'Z2'}
         # Filter by fiber from key
-        fib = fib_map.get(fib_key, 'MID')
+        fib = fib_map.get(fib_key, fib_key.upper())
         gps = {nid: gp for (nid, f), gp in r.gp_stresses.get(sc, {}).items() if f == fib}
         if not gps: return
-        gp_map = {'gp_vm':'ovm','gp_sxx':'sxx','gp_syy':'syy',
-                  'gp_txy':'txy','gp_s1':'s1','gp_s2':'s2'}
+        gp_map = GP_COMPONENTS
         attr = gp_map.get(parts_rt[0], 'ovm')
         vals = [float(getattr(gp, attr, 0.0)) for gp in gps.values()]
         if not vals: return
         vmin, vmax = min(vals), max(vals)
-        fib_label = {'Z1':'Top','Z2':'Bot','MID':'Mid'}.get(fib, fib)
-        label_base = {'gp_vm':'GP Von Mises','gp_sxx':'GP Sxx','gp_syy':'GP Syy',
-                      'gp_txy':'GP Txy','gp_s1':'GP S1','gp_s2':'GP S2'}.get(parts_rt[0], parts_rt[0])
+        fib_label = gp_location_label(r, sc, fib)
+        label_base = 'GP ' + GP_LABELS.get(parts_rt[0], parts_rt[0])
         label = f"{label_base} {fib_label}"
     else:
         return
@@ -1521,6 +1573,12 @@ def draw_legend(state: ViewerState, width: int, height: int):
     # Title BELOW the bar (avoids all overlap with tick labels)
 
     # Max/Min location (2 lines below title)
+    if rt in _SHELL_ELEM_STRESS_RTS:
+        missing = r.missing_element_stresses.get(sc, {})
+        count = sum(len(ids) for ids in missing.values())
+        if count:
+            dl.add_text((bar_x, bar_y + bar_h + 82), 0xFF66BBFF,
+                        f"No element stress: {count} elements")
     _draw_maxmin_markers(state, dl, bar_x, bar_y, bar_h, bar_w)
     if (state.model is not None
             and rt in _SHELL_STRESS_RTS):
@@ -1539,12 +1597,12 @@ _RESULTS = [
     ('t1',           'Displacement T1'),
     ('t2',           'Displacement T2'),
     ('t3',           'Displacement T3'),
-    ('von_mises',    'Shell Stress - VM'),
-    ('oxx',          'Shell Stress - Sxx'),
-    ('oyy',          'Shell Stress - Syy'),
-    ('txy',          'Shell Stress - Sxy'),
-    ('omax',         'Shell Stress - S1'),
-    ('omin',         'Shell Stress - S3'),
+    ('von_mises',    'Element Stress - VM'),
+    ('oxx',          'Element Stress - Sxx'),
+    ('oyy',          'Element Stress - Syy'),
+    ('txy',          'Element Stress - Sxy'),
+    ('omax',         'Element Stress - S1'),
+    ('omin',         'Element Stress - S3'),
     ('von_mises_top','Shell Stress - VM Top'),
     ('oxx_top',      'Shell Stress - Sxx Top'),
     ('oyy_top',      'Shell Stress - Syy Top'),
@@ -1572,12 +1630,12 @@ _RESULTS = [
     ('mxy',          'Shell Force MXY (Element)'),
     ('qx',           'Shell Force QX (Element)'),
     ('qy',           'Shell Force QY (Element)'),
-    ('nodal_vm',     'Shell Nodal - VM'),
-    ('noxx',         'Shell Nodal - Sxx'),
-    ('noyy',         'Shell Nodal - Syy'),
-    ('ntxy',         'Shell Nodal - Sxy'),
-    ('nomax',        'Shell Nodal - S1'),
-    ('nomin',        'Shell Nodal - S3'),
+    ('nodal_vm',     'Nodal Stress - VM'),
+    ('noxx',         'Nodal Stress - Sxx'),
+    ('noyy',         'Nodal Stress - Syy'),
+    ('ntxy',         'Nodal Stress - Sxy'),
+    ('nomax',        'Nodal Stress - S1'),
+    ('nomin',        'Nodal Stress - S3'),
     ('fx',  'Shell Force FX (Membrane X)'),
     ('fy',  'Shell Force FY (Membrane Y)'),
     ('fxy', 'Shell Force FXY (Shear)'),
@@ -1639,7 +1697,8 @@ def _stress_nodal_components(state: ViewerState):
 def _has_nodal_stress(state: ViewerState) -> bool:
     if state.nodal_stress_components():
         return True
-    return state.has_gp_stress()
+    return bool(state.results and any(loc in ('Z1', 'Z2', 'MID')
+                for _, loc in state.results.gp_stresses.get(state.subcase, {})))
 
 
 def _has_nodal_force(state: ViewerState) -> bool:
@@ -1715,9 +1774,9 @@ def draw_contour_toolbar(state: ViewerState, width: int, height: int):
             # Check which fibers are present
             raw_gp = state.results.gp_stresses.get(state.subcase, {})
             fibers_present = set(f for (_, f) in raw_gp.keys())
-            for fib in fibers_present:
-                fib_key = {'Z1': 'z1', 'Z2': 'z2', 'MID': 'mid'}.get(fib, fib)
-                for k in ('gp_vm', 'gp_sxx', 'gp_syy', 'gp_txy', 'gp_s1', 'gp_s2'):
+            for fib in sorted(fibers_present):
+                fib_key = {'Z1': 'z1', 'Z2': 'z2', 'MID': 'mid'}.get(fib, fib.lower())
+                for k in (GP_COMPONENTS if fib.startswith('V') else ('gp_vm', 'gp_sxx', 'gp_syy', 'gp_txy', 'gp_s1', 'gp_s2')):
                     full_k = f'{k}_{fib_key}'
                     if full_k not in avail_keys:
                         avail_keys.append(full_k)
@@ -1729,6 +1788,11 @@ def draw_contour_toolbar(state: ViewerState, width: int, height: int):
         avail_keys = list(dict.fromkeys(avail_keys))
 
         res_map = dict(_RESULTS)
+        for key in avail_keys:
+            if key.startswith('gp_') and gp_location(key).startswith('V'):
+                base = key.rsplit('_', 1)[0]
+                loc = gp_location_label(state.results, state.subcase, gp_location(key))
+                res_map[key] = f"GP {GP_LABELS.get(base, base)} {loc}"
         avail_labels = [res_map.get(k, k) for k in avail_keys]
         if avail_keys and state.result_type not in avail_keys:
             state.result_type = avail_keys[0]
@@ -1775,13 +1839,17 @@ def draw_contour_toolbar(state: ViewerState, width: int, height: int):
         # ── Fiber location toggle for all shell stress result types ────────
         _all_shell_stress = _SHELL_ELEM_STRESS_RTS + _SHELL_NODAL_STRESS_RTS
         is_gp_stress_rt = state.result_type.startswith('gp_')
-        if state.result_type in _all_shell_stress or is_gp_stress_rt:
+        if (state.result_type in _all_shell_stress and state.has_shell_stress_fibers()) or is_gp_stress_rt:
             if is_gp_stress_rt:
                 # Only show fibers that exist in the data
                 raw_gp = state.results.gp_stresses.get(state.subcase, {})
                 fibers_present = set(f for (_, f) in raw_gp.keys())
                 fib_opt_map = {"MID": ("MID", "mid"), "Z1": ("Z1", "z1"), "Z2": ("Z2", "z2")}
                 fiber_opts = [fib_opt_map[f] for f in ("MID", "Z1", "Z2") if f in fibers_present]
+                fiber_opts += [(f"Vol {f[1:]}", f.lower()) for f in sorted(fibers_present)
+                               if f.startswith('V') and f[1:].isdigit()]
+                if state.result_type.rsplit('_', 1)[0] not in ('gp_vm', 'gp_sxx', 'gp_syy', 'gp_txy', 'gp_s1', 'gp_s2'):
+                    fiber_opts = [(label, key) for label, key in fiber_opts if key.startswith('v')]
                 if not fiber_opts:
                     fiber_opts = [("Z1", "z1")]  # fallback
                 parts_rt = state.result_type.rsplit('_', 1)
@@ -1793,6 +1861,18 @@ def draw_contour_toolbar(state: ViewerState, width: int, height: int):
                 fiber_label = "Fiber"
             imgui.text(fiber_label + ":")
             imgui.same_line()
+            if is_gp_stress_rt:
+                selected = next((i for i, (_, key) in enumerate(fiber_opts)
+                                 if key == current_fib_key), 0)
+                imgui.set_next_item_width(100)
+                changed, index = imgui.combo('##gp_location', selected,
+                                             [label for label, _ in fiber_opts])
+                if changed:
+                    key = fiber_opts[index][1]
+                    state.gp_fiber = key.upper()
+                    state.result_type = state.result_type.rsplit('_', 1)[0] + '_' + key
+                    rebuild = True
+                fiber_opts = []
             for i, opt in enumerate(fiber_opts):
                 if isinstance(opt, tuple):
                     display_label, fib_key = opt
@@ -1980,6 +2060,15 @@ def draw_op2_summary_window(state: ViewerState, width: int, height: int):
             type_str = ', '.join(f"{t}:{c}" for t, c in sorted(by_type.items()))
             imgui.text(f"  SC {s}: {ns} elems ({type_str})")
     imgui.separator()
+
+    from parser.result_coverage import element_id_ranges
+    for subcase, groups in r.missing_element_stresses.items():
+        for family, ids in groups.items():
+            imgui.text_wrapped(f"SC {subcase}: {len(ids)} {family} elements have no element stress records "
+                               f"({element_id_ranges(ids)}).")
+    if any(r.missing_element_stresses.values()):
+        imgui.text_wrapped("Uncolored elements have no element stress result. GPSTRESS Volume is separate.")
+        imgui.separator()
 
     # ── Strain ──
     total_strain = sum(

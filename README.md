@@ -44,9 +44,12 @@ python main.py model.bdf model.neu                # + results (NEU/Femap)
 - Shell stress fibers: Top / Bottom / Mid controls for element and averaged nodal stresses, with legends and result labels
 - Nodal contours: solver and derived stress averages, including mixed shell models and centroid-only CTRIA3 results
 - Grid-point surface stresses (GPSTRESS): VM, Sxx, Syy, Txy, S1, and S2 with Z1 / Z2 / MID fiber selection when present in the results
-- Grid-point Volume stresses (GPSTRESS)
+- Shared shell/solid centroid results use the Element Stress selector. Shell Top/Bottom locations are shown only when shell fiber data is present. Missing OP2 element stress records are reported by type and ID in the summary and logs, with an explicit unavailable message on hover; GPSTRESS Volume is kept separate.
+- OP2 GPSTRESS VOLUME direct: separate volume IDs and coordinate-system labels, VM, Sxx/Syy/Szz, Txy/Tyz/Txz, pressure, and S1/S2/S3 computed from the direct stress tensor. Select a `GP ... Volume ...` result, then use the `GP` selector to switch volumes. Principal-only OGS tables are not decoded; direct volume data is required.
+- pyNastran 1.4.1 compatibility: pyramid OES type 255 and tuple subcases accompanying OGS volumes.
 - MYSTRAN F06 grid-point forces: Nxx, Nyy, Nxy, Mxx, Myy, Mxy, Qx, and Qy contours
 - Surfaces: case-control SET / SURFACE definitions, model-browser selection, magenta highlighting, surface IDs, and surface-axis arrows
+- GPSTRESS volumes: case-control SET / VOLUME definitions (including THRU/BY ranges), Model volume count, and Library entries with solid-element counts. Left-click highlights a volume and switches an active GP contour to it; right-click clears highlighting. The right-panel Volume numbers notation toggle appears for defined or detected GPSTRESS volumes and labels each recovery group.
 - Beam sections: circular CROD/PROD profiles and area-based PBAR/PBEAM visualization
 - Diagnostics: on-screen log window and OP2 summary of available result tables
 - OP2 compatibility: integer/tuple subcase keys and newer pyNastran stress-table organization; GPSTRESS availability depends on pyNastran and the OP2 format
