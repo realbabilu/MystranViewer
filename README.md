@@ -9,6 +9,9 @@ Python OpenGL FEM viewer for NASTRAN/MYSTRAN models.
 <img width="1919" height="1032" alt="image" src="https://github.com/user-attachments/assets/6c6949e7-9bb0-4966-95eb-7514f1590047" />
 <img width="1919" height="1030" alt="image" src="https://github.com/user-attachments/assets/224dd7ef-d144-45dc-8552-5eb09f2712d9" />
 <img width="1919" height="1029" alt="image" src="https://github.com/user-attachments/assets/d88bcc5e-81b5-42bf-b082-f0bb6a6d9b36" />
+<img width="1919" height="1025" alt="image" src="https://github.com/user-attachments/assets/ba9fd910-73f3-4694-bd7c-8cde77cd95ef" />
+<img width="1402" height="988" alt="image" src="https://github.com/user-attachments/assets/9baf60ed-03b0-4c84-aa6f-ae68904d51b8" />
+
 
 ## Requirements
 ```
@@ -41,6 +44,7 @@ python main.py model.bdf model.neu                # + results (NEU/Femap)
 - Shell stress fibers: Top / Bottom / Mid controls for element and averaged nodal stresses, with legends and result labels
 - Nodal contours: solver and derived stress averages, including mixed shell models and centroid-only CTRIA3 results
 - Grid-point surface stresses (GPSTRESS): VM, Sxx, Syy, Txy, S1, and S2 with Z1 / Z2 / MID fiber selection when present in the results
+- Grid-point Volume stresses (GPSTRESS)
 - MYSTRAN F06 grid-point forces: Nxx, Nyy, Nxy, Mxx, Myy, Mxy, Qx, and Qy contours
 - Surfaces: case-control SET / SURFACE definitions, model-browser selection, magenta highlighting, surface IDs, and surface-axis arrows
 - Beam sections: circular CROD/PROD profiles and area-based PBAR/PBEAM visualization
